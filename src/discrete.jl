@@ -5,7 +5,7 @@ nlags(process::DiscreteHawkesProcess) = nlags(process.impulses)
 function isstable(p::DiscreteHawkesProcess) end
 
 """
-    rand(p::DiscreteHawkesProcess, T::Int64)
+    rand(p::DiscreteHawkesProcess, steps)
 
 Sample a random sequence of events from a discrete Hawkes process.
 
@@ -15,14 +15,14 @@ Sample a random sequence of events from a discrete Hawkes process.
 # Returns
 - `S::Array{Int64,2}`: an `N x T` array of event counts.
 """
-function rand(process::DiscreteHawkesProcess, T::Int64)
+function rand(process::DiscreteHawkesProcess, steps::Int64)
     N = ndims(process)
     L = nlags(process)
-    events = rand(process.baseline, T)
-    for t = 1:T-1
+    events = rand(process.baseline, steps)
+    for t = 1:steps-1
         for parentnode = 1:N
             for _ = 1:events[parentnode, t]
-                max_steps = min(L, T - t)
+                max_steps = min(L, steps - t)
                 for childnode in 1:N
                     for s = 1:max_steps
                         λ = impulse_response(process, parentnode, childnode, s)
@@ -69,8 +69,8 @@ function augmented_loglikelihood(process::DiscreteHawkesProcess, parents, convol
 end
 
 """
-    loglikelihood(process::DiscreteHawkesProcess, data, convolved)
     loglikelihood(process::DiscreteHawkesProcess, data)
+    loglikelihood(process::DiscreteHawkesProcess, data, convolved)
 
 Calculate the log-likelihood of `data`. Providing `convolved` skips computation of the convolution step.
 
@@ -81,6 +81,11 @@ Calculate the log-likelihood of `data`. Providing `convolved` skips computation 
 # Returns
 - `ll::Float64`: the log-likelihood of the event counts.
 """
+function loglikelihood(process::DiscreteHawkesProcess, data)
+    convolved = convolve(process, data)
+    return loglikelihood(process, data, convolved)
+end
+
 function loglikelihood(process::DiscreteHawkesProcess, data, convolved)
     λ = intensity(process, convolved)
     T, N, _ = size(convolved)
@@ -94,10 +99,7 @@ function loglikelihood(process::DiscreteHawkesProcess, data, convolved)
     return ll
 end
 
-function loglikelihood(process::DiscreteHawkesProcess, data)
-    convolved = convolve(process, data)
-    return loglikelihood(process, data, convolved)
-end
+
 
 """
     intensity(process::DiscreteHawkesProcess, convolved)

@@ -50,8 +50,6 @@ end
 
 """
     loglikelihood(process::ContinuousHawkesProcess, data)
-    loglikelihood(process::ContinuousStandardHawkesProcess, data; multithreaded=true, recursive=true)
-    loglikelihood(process::ContinuousNetworkHawkesProcess, data; multithreaded=true)
 
 Calculate the log-likelihood of `data`.
 
@@ -91,7 +89,9 @@ function impulse_response(process::ContinuousHawkesProcess, parentnode, childnod
 """
     ContinuousStandardHawkesProcess(baseline, impulses, weights)
 
-A continuous standard Hawkes processes. Equivalent to a continuous network Hawkes process with a fully-connected network.
+A continuous standard Hawkes processes.
+
+Equivalent to a continuous network Hawkes process with a fully-connected network.
 """
 struct ContinuousStandardHawkesProcess <: ContinuousHawkesProcess
     baseline::Baseline
