@@ -7,6 +7,8 @@ makedocs(
     modules=[NetworkHawkesProcesses],
     pages=[
         "index.md",
+        "tutorial.md",
+        "examples.md",
         "api.md",
     ]
 )
