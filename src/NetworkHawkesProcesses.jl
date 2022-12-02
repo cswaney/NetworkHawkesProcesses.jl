@@ -30,14 +30,30 @@ include("continuous.jl")
 include("discrete.jl")
 include("parents.jl")
 
-export ContinuousStandardHawkesProcess,
+export HawkesProcess,
+       ContinuousHawkesProcess,
+       ContinuousStandardHawkesProcess,
        ContinuousNetworkHawkesProcess,
+       DiscreteHawkesProcess,
+       DiscreteStandardHawkesProcess,
+       DiscreteNetworkHawkesProcess,
        HomogeneousProcess,
        LogGaussianCoxProcess,
+       DiscreteHomogeneousProcess,
+       DiscreteLogGaussianCoxProcess,
        LogitNormalImpulseResponse,
        ExponentialImpulseResponse,
+       DiscreteGaussianImpulseResponse,
        DenseNetworkModel,
        DenseWeightModel,
-       BernoulliNetworkModel
+       SparseWeightModel,
+       DenseNetworkModel,
+       BernoulliNetworkModel,
+       rand,
+       intensity,
+       loglikelihood,
+       mle!,
+       mcmc!,
+       vb!
 
 end # module
