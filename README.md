@@ -1,12 +1,17 @@
 # NetworkHawkesProcesses.jl
-Hawkes processes in Julia.
-
+Mutually-exciting Hawkes processes in Julia.
 
 ## Description
-What is this project?
+This package implements methods to simulate and estimate mutually-exciting Hawkes processes with network structure as described in [Linderman, 2016](https://dash.harvard.edu/handle/1/33493391). It provides multiple inference procedures (including maximum-likelihood/maximum-a-posteriori estimation, Markov chain Monte Carlo sampling, and variational inference), a flexible set of model components, and an interface that allows users to develop custom models from new components.
 
-## Usage
-How do you use it?
+Package features include:
+- Supports continuous and discrete processes
+- Uses modular design to support extensible components
+- Implements simulation via Poisson thinning
+- Provides multiple estimation/inference methods
+- Supports a wide range of network specifications
+- Supports non-homogeneous baselines
+- Accelerates methods via Julia's built-in multithreading module
 
 ### Installation
 ```julia
@@ -15,106 +20,27 @@ julia> using Pkg; Pkg.add("NetworkHawkesProcesses")
 
 ### Usage
 ```julia
-julia> using NetworkHawkesProcesses
+using NetworkHawkesProcesses
+nnodes = 2
+weight = 0.1
+duration = 1000.0
+Δtmax = 1.0
+baseline = NetworkHawkesProcesses.HomogeneousProcess(ones(nnodes))
+weights = NetworkHawkesProcesses.DenseWeightModel(weight .* ones(nnodes, nnodes))
+impulses = NetworkHawkesProcesses.ExponentialImpulseResponse(ones(nnodes, nnodes))
+process = NetworkHawkesProcesses.ContinuousStandardHawkesProcess(baseline, impulses, weights)
+data = NetworkHawkesProcesses.rand(process, duration)
+ll = NetworkHawkesProcesses.loglikelihood(process, data)
+res = NetworkHawkesProcesses.mle!(process, data; verbose=true, regularize=true) # regularize => maximum a-priori estimation
 ```
-
-#### Models
-```julia
-baseline = # ...
-impulses = # ...
-weights = # ...
-process = NetworkHawkesProcesses.StandardHawkesProcess(baseline, impulses, weights)
-```
-
-#### Simulation
-```julia
-data = NetworkHawkesProcesses.rand(process, 100.)
-```
-
-#### Inference
-```julia
-res = NetworkHawkesProcesses.mle!(process, data)
-res = NetworkHawkesProcesses.mcmc!(process, data)
-```
-
-#### Extensions
-You can extend `NetworkHawkesProcesses` to support new models by creating new types that adhere to the interface of the model component you wish to replace.
-
-For example, here's how to create a new `Network` model:
-```julia
-# TODO
-```
-
-### Examples
-A few simple examples.
-
-#### Continuous Processes
-
-#### Discrete Processes
-
-#### Visualization
-How to view the results of simulation and inference?
-
-## Contributing
-How to contribute and report issues.
 
 ## Roadmap
-What are the next steps?
+Beyond continued testing and documentation, we plan to add the following features in the future:
+- stochastic variational inference
+- advanced network models (e.g., latent distance networks)
+- network models for weights
+- time-varying network models
+- exogenous covariates
 
-
-
-
-
-
-
-
-## Continuous Hawkes Processes
-
-### `ContinuousNetworkHawkesProcess`
-
-#### Inference
-- Maximum-likelihood
-    - Baseline: any `BaselineProcess`.
-    - Impulse: `LogitNormalProcess`.
-    - Weights: `DenseWeightModel`.
-    - Network: `Nothing` (connection matrix is `A` is taken as given and not estimated).
-- Markov chain Monte Carlo
-    - Baseline: any `BaselineProcess`.
-    - Impulse: `LogitNormalProcess`.
-    - Weights: `DenseWeightModel`.
-    - Network: any `NetworkModel` or `Nothing` (if `Nothing`, then network model is ignored; connection matrix is `A` is taken as given and not estimated).
-
-
-### `ContinuousStandardHawkesProcess`
-
-#### Inference
-- Maximum-likelihood
-    - Baseline: any `BaselineProcess`.
-    - Impulse: `ExponentialProcess`.
-    - Weights: `DenseWeightModel`.
-    - Network: `Nothing` (connection matrix is `A` is taken as given and not estimated).
-- Markov chain Monte Carlo
-    - Baseline: any `BaselineProcess`.
-    - Impulse: `ExponentialProcess`.
-    - Weights: `DenseWeightModel`.
-    - Network: any `NetworkModel` or `Nothing` (if `Nothing`, then network model is ignored; connection matrix is `A` is taken as given and not estimated).
-
-
-## Discrete Hawkes Processes
-
-### `DiscreteNetworkHawkesProcess`
-- Maximum-likelihood
-    - Baseline: any `DiscreteProcess`.
-    - Impulse: `NormalMixtureProcess`.
-    - Weights: `DenseWeightModel`.
-    - Network: `Nothing` (connection matrix is `A` is taken as given and not estimated).
-- Markov chain Monte Carlo
-    - Baseline: any `DiscreteProcess`.
-    - Impulse: `NormalMixtureProcess`.
-    - Weights: `DenseWeightModel`.
-    - Network: any `NetworkModel` or `Nothing` (if `Nothing`, then network model is ignored; connection matrix is `A` is taken as given and not estimated).
-- Variational Bayes
-    - Baseline: any `DiscreteProcess`.
-    - Impulse: `NormalMixtureProcess`.
-    - Weights: `DenseWeightModel`.
-    - Network: any `NetworkModel` or `Nothing` (if `Nothing`, then network model is ignored; connection matrix is `A` is taken as given and not estimated).
+## Contributing
+Contributions and feedback are welcome. Please report issues and feature requests to our GitHub page, [https://github.com/cswaney/NetworkHawkesProcesses.jl](https://github.com/cswaney/NetworkHawkesProcesses.jl).
