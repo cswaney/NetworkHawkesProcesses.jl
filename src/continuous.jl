@@ -99,6 +99,8 @@ struct ContinuousStandardHawkesProcess <: ContinuousHawkesProcess
     weights::Weights
 end
 
+isstable(p::ContinuousStandardHawkesProcess) = maximum(abs.(eigvals(p.weights.W))) < 1.0
+
 function params(process::ContinuousStandardHawkesProcess)
     """Return a copy of a processes' trainable parameters as a vector."""
     return [params(process.baseline); params(process.impulses); params(process.weights)]
