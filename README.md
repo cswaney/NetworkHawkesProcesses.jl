@@ -16,7 +16,7 @@ This package implements methods to simulate and estimate mutually-exciting Hawke
 ## Installation
 ```julia
 using Pkg;
-Pkg.add("NetworkHawkesProcesses")
+Pkg.add("https://github.com/cswaney/NetworkHawkesProcesses.jl.git")
 ```
 
 ## Usage
