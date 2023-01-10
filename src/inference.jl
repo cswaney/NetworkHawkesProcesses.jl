@@ -6,22 +6,13 @@ A container to store the results of maximum likelihood estimation.
 mutable struct MaximumLikelihood
     maximizer
     maximum
-    outer_iterations
-    inner_iterations
+    steps
     elapsed
     status
 end
 
-function MaximumLikelihood(process::HawkesProcess)
-    samples = Vector{typeof(params(process))}()
-    steps = 0
-    elapsed = 0.0
-    status = "incomplete"
-    MaximumLikelihood(samples, steps, elapsed, status)
-end
-
-function show(io::IO, res::MaximumLikelihood)
-    print(io, "\n* Status: complete\n    steps: $(res.steps)\n    elapsed: $(res.elapsed)")
+function Base.show(io::IO, res::MaximumLikelihood)
+    print(io, "\n* Status: $(res.status)\n    steps: $(res.steps)\n    elapsed: $(res.elapsed)\n    loss: $(res.maximum)")
 end
 
 
