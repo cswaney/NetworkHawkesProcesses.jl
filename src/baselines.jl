@@ -33,6 +33,7 @@ end
 HomogeneousProcess(λ) = HomogeneousProcess(λ, 1.0, 1.0)
 
 size(process::HomogeneousProcess) = length(process.λ)
+ndims(process::HomogeneousProcess) = length(process.λ)
 
 params(process::HomogeneousProcess) = copy(process.λ)
 
@@ -185,6 +186,7 @@ function LogGaussianCoxProcess(nnodes, duration)
 end
 
 size(process::LogGaussianCoxProcess) = length(process.x)
+ndims(process::LogGaussianCoxProcess) = length(process.x)
 
 length(process::LogGaussianCoxProcess) = process.x[1][end] # process.x[1][1] == 0.
 
