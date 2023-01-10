@@ -99,8 +99,6 @@ function loglikelihood(process::DiscreteHawkesProcess, data, convolved)
     return ll
 end
 
-
-
 """
     intensity(process::DiscreteHawkesProcess, convolved)
 
@@ -127,6 +125,8 @@ function intensity(process::DiscreteHawkesProcess, convolved)
     end
     return λ
 end
+
+intensity(process::DiscreteHawkesProcess, data::Matrix) = intensity(process, convolve(process, data))
 
 """
     convolve(process::DiscreteHawkesProcess, data)
@@ -207,7 +207,7 @@ function variational_params(process::DiscreteStandardHawkesProcess)
 end
 
 # TODO Use MaximumLikelihood to return results
-function mle!(process::DiscreteStandardHawkesProcess, data; optimizer=BFGS, verbose=false, f_abstol=1e-6, regularize=false, guess=nothing)
+function mle!(process::DiscreteStandardHawkesProcess, data; optimizer=BFGS, verbose=false, f_abstol=1e-6, regularize=false, guess=nothing, max_increase_steps=3)
 
     convolved = convolve(process, data)
 
@@ -231,6 +231,9 @@ function mle!(process::DiscreteStandardHawkesProcess, data; optimizer=BFGS, verb
 
     minloss = Inf
     outer_iter = 0
+    converged = false
+    increase_steps = 0
+    steps = 0
 
     function status_update(o)
         if o.iteration == 0
@@ -246,6 +249,8 @@ function mle!(process::DiscreteStandardHawkesProcess, data; optimizer=BFGS, verb
             end
         end
         if abs(o.value - minloss) < f_abstol
+            converged = true
+            steps = o.iteration
             println("\n* Status: f_abstol convergence criteria reached!")
             println("    elapsed: $(o.metadata["time"])")
             println("    final loss: $(o.value)")
@@ -254,15 +259,21 @@ function mle!(process::DiscreteStandardHawkesProcess, data; optimizer=BFGS, verb
             println("    inner iterations: $(o.iteration)\n")
             return true
         elseif o.value > minloss
-            println("\n* Status: loss increase criteria reached!")
-            println("    elapsed: $(o.metadata["time"])")
-            println("    final loss: $(o.value)")
-            println("    min. loss: $(minloss)")
-            println("    outer iterations: $outer_iter")
-            println("    inner iterations: $(o.iteration)\n")
-            return true
+            increase_steps += 1
+            if increase_steps >= max_increase_steps
+                converged = true
+                steps = o.iteration
+                println("\n* Status: loss increase criteria reached!")
+                println("    elapsed: $(o.metadata["time"])")
+                println("    final loss: $(o.value)")
+                println("    min. loss: $(minloss)")
+                println("    outer iterations: $outer_iter")
+                println("    inner iterations: $(o.iteration)\n")
+                return true
+            end
         else
             minloss = o.value
+            increase_steps = 0
         end
         return false
     end
@@ -273,7 +284,13 @@ function mle!(process::DiscreteStandardHawkesProcess, data; optimizer=BFGS, verb
     optimizer = Fminbox(optimizer())
     options = Optim.Options(callback=status_update)
     res = optimize(objective, gradient!, lower, upper, guess, optimizer, options)
-    return res
+    return MaximumLikelihood(
+        res.minimizer,
+        -res.minimum,
+        steps,
+        res.time_run,
+        converged ? "success" : "failure"
+    )
 end
 
 function d_loglikelihood(process::DiscreteStandardHawkesProcess, data, convolved)
