@@ -1,3 +1,5 @@
+[![Build Status](https://app.travis-ci.com/cswaney/NetworkHawkesProcesses.jl.svg?branch=master)](https://app.travis-ci.com/cswaney/NetworkHawkesProcesses.jl)
+
 # NetworkHawkesProcesses.jl
 Network Hawkes processes in Julia.
 
@@ -37,6 +39,7 @@ res = NetworkHawkesProcesses.mle!(process, data; verbose=true, regularize=true)
 
 ## Roadmap
 In addition to improved testing and documentation, we plan to add the following features in future releases:
+- Support for (distributed) multiple-trial inference
 - Support stochastic variational inference
 - Implement additional network models (e.g., stochastic block and latent distance networks)
 - Implement network models for weights
