@@ -29,6 +29,7 @@ include("networks.jl")
 include("continuous.jl")
 include("discrete.jl")
 include("parents.jl")
+include("plotting.jl")
 
 export HawkesProcess,
        ContinuousHawkesProcess,
