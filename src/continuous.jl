@@ -2,6 +2,7 @@ abstract type ContinuousHawkesProcess <: HawkesProcess end
 
 
 size(process::ContinuousHawkesProcess) = size(process.baseline)
+ndims(process::ContinuousHawkesProcess) = ndims(process.baseline)
 
 """
     rand(process::ContinuousHawkesProcess, duration)
@@ -83,6 +84,20 @@ function intensity(process::ContinuousHawkesProcess, data, times::Vector{Float64
     return λs
 end
 
+function intensity(process::ContinuousHawkesProcess, data, time::Float64)
+    events, nodes, _ = data
+    nnodes = size(process)
+    idx = time - process.impulses.Δtmax .< events .< time
+    λ = zeros(nnodes)
+    for childnode = 1:nnodes
+        for (parenttime, parentnode) in zip(events[idx], nodes[idx])
+            Δt = time - parenttime
+            λ[childnode] += impulse_response(process, parentnode, childnode, Δt)
+        end
+    end
+    return intensity(process.baseline, time) .+ λ
+end
+
 function impulse_response(process::ContinuousHawkesProcess, parentnode, childnode, Δt) end
 
 
@@ -129,7 +144,6 @@ function _generate_children!_(events, parentevent, parentnode, process::Continuo
     end
 end
 
-# TODO Use MaximumLikelihood to return results
 function mle!(process::ContinuousStandardHawkesProcess, data; optimizer=BFGS, verbose=false, f_abstol=1e-6, regularize=false, guess=nothing)
 
     function objective(x)
@@ -139,6 +153,8 @@ function mle!(process::ContinuousStandardHawkesProcess, data; optimizer=BFGS, ve
 
     minloss = Inf
     outer_iter = 0
+    converged = false
+    steps = 0
 
     function status_update(o)
         if o.iteration == 0
@@ -154,6 +170,8 @@ function mle!(process::ContinuousStandardHawkesProcess, data; optimizer=BFGS, ve
             end
         end
         if abs(o.value - minloss) < f_abstol
+            converged = true
+            steps = o.iteration
             println("\n* Status: f_abstol convergence criteria reached!")
             println("    elapsed: $(o.metadata["time"])")
             println("    final loss: $(o.value)")
@@ -173,8 +191,13 @@ function mle!(process::ContinuousStandardHawkesProcess, data; optimizer=BFGS, ve
     optimizer = Fminbox(optimizer())
     options = Optim.Options(callback=status_update)
     res = optimize(objective, lower, upper, guess, optimizer, options)
-    # return res.minimizer
-    return res
+    return MaximumLikelihood(
+        res.minimizer,
+        -res.minimum,
+        steps,
+        res.time_run,
+        converged ? "success" : "failure"
+    )
 end
 
 _rand_init_(process::ContinuousStandardHawkesProcess) = rand(length(params(process)))
@@ -279,20 +302,6 @@ function total_intensity(process::ContinuousStandardHawkesProcess, events, nodes
     return λtot
 end
 
-function intensity(process::ContinuousStandardHawkesProcess, data, time::Float64)
-    events, nodes, _ = data
-    nnodes = size(process)
-    idx = time - process.impulses.Δtmax .< events .< time
-    λ = zeros(nnodes)
-    for childnode = 1:nnodes
-        for (parenttime, parentnode) in zip(events[idx], nodes[idx])
-            Δt = time - parenttime
-            λ[childnode] += impulse_response(process, parentnode, childnode, Δt)
-        end
-    end
-    return intensity(process.baseline, time) .+ λ
-end
-
 function impulse_response(process::ContinuousStandardHawkesProcess, parentnode, childnode, Δt)
     w = process.weights.W[parentnode, childnode]
     return w * intensity(process.impulses, parentnode, childnode, Δt)
@@ -313,6 +322,8 @@ struct ContinuousNetworkHawkesProcess <: ContinuousHawkesProcess
     adjacency_matrix::Matrix
     network::Network
 end
+
+isstable(p::ContinuousNetworkHawkesProcess) = maximum(abs.(eigvals(p.adjacency_matrix .* p.weights.W))) < 1.0
 
 function params(process::ContinuousNetworkHawkesProcess)
     """Return a copy of a processes' trainable parameters as a vector."""
@@ -395,7 +406,6 @@ function total_intensity(process::ContinuousNetworkHawkesProcess, events, nodes,
     end
     return λtot
 end
-
 
 function recursive_loglikelihood(process::ContinuousNetworkHawkesProcess, data)
     events, nodes, duration = data
