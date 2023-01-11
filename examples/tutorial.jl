@@ -68,10 +68,10 @@ process = DiscreteStandardHawkesProcess(baseline, impulses, weights, dt);
 isstable(process)
 data = rand(process, duration);
 NetworkHawkesProcesses.plot(process, data; stop=100, path="/Users/colinswaney/GitHub/NetworkHawkesProcesses.jl/docs/src/assets/img/discrete-data.svg")
-# res = mle!(process, data; verbose=true, regularize=false); # NOTE: these estimates don't look good... loss keeps increasing...
-# NetworkHawkesProcesses.params(process)
-res = mcmc!(process, data; verbose=true);
-mean(res.samples)
+res = mle!(process, data; verbose=true, regularize=false);
+NetworkHawkesProcesses.params(process)
+# res = mcmc!(process, data; verbose=true);
+# mean(res.samples)
 # res = vb!(process, data; verbose=true, regularize=false);
 ll = loglikelihood(process, data)
 NetworkHawkesProcesses.plot(process.impulses, (1, 1))

@@ -206,7 +206,6 @@ function variational_params(process::DiscreteStandardHawkesProcess)
     return [θ_baseline; θ_impulses; θ_weights]
 end
 
-# TODO Use MaximumLikelihood to return results
 function mle!(process::DiscreteStandardHawkesProcess, data; optimizer=BFGS, verbose=false, f_abstol=1e-6, regularize=false, guess=nothing, max_increase_steps=3)
 
     convolved = convolve(process, data)
@@ -216,10 +215,10 @@ function mle!(process::DiscreteStandardHawkesProcess, data; optimizer=BFGS, verb
         return regularize ? -loglikelihood(process, data, convolved) - logprior(process) : -loglikelihood(process, data, convolved)
     end
 
-    function gradient!(g, x)
-        params!(process, x)
-        g .= regularize ? -d_loglikelihood(process, data, convolved) - d_logprior(process) : -d_loglikelihood(process, data, convolved)
-    end
+    # function gradient!(g, x)
+    #     params!(process, x)
+    #     g .= regularize ? -d_loglikelihood(process, data, convolved) - d_logprior(process) : -d_loglikelihood(process, data, convolved)
+    # end
 
     # OPTIMIZATION
     # function fg!(f, g, x)
@@ -283,7 +282,8 @@ function mle!(process::DiscreteStandardHawkesProcess, data; optimizer=BFGS, verb
     upper = fill(1e1, size(guess))
     optimizer = Fminbox(optimizer())
     options = Optim.Options(callback=status_update)
-    res = optimize(objective, gradient!, lower, upper, guess, optimizer, options)
+    res = optimize(objective, lower, upper, guess, optimizer, options)
+    # res = optimize(objective, gradient!, lower, upper, guess, optimizer, options)
     return MaximumLikelihood(
         res.minimizer,
         -res.minimum,
