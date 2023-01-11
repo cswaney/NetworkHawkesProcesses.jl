@@ -46,7 +46,7 @@ end
 
 Perform Markov chain Monte Carlo (Gibbs) sampling.
 """
-function mcmc!(process::HawkesProcess, data; nsteps=1000, verbose=false)
+function mcmc!(process::HawkesProcess, data; nsteps=1000, log_freq=100, verbose=false)
     res = MarkovChainMonteCarlo(process)
     start_time = time()
     if isa(process, DiscreteHawkesProcess)
@@ -60,7 +60,7 @@ function mcmc!(process::HawkesProcess, data; nsteps=1000, verbose=false)
         end
         push!(res.samples, params(process))
         res.steps += 1
-        if res.steps % 10 == 0 && verbose
+        if res.steps % log_freq == 0 && verbose
             res.elapsed = time() - start_time
             println(" > step: $(res.steps), elapsed: $(res.elapsed)")
         end
