@@ -1,5 +1,6 @@
 using Pkg
-Pkg.activate("..")
+# Pkg.activate("..")
+Pkg.activate(".")
 using Documenter, NetworkHawkesProcesses
 
 makedocs(

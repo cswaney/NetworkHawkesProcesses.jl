@@ -25,8 +25,7 @@ These models--*network Hawkes processes*--permit simultaneous inference on the s
 ```julia
 julia> using Pkg;
 julia> Pkg.add("https://github.com/cswaney/NetworkHawkesProcesses.jl.git")
-# or
-pkg> add "https://github.com/cswaney/NetworkHawkesProcesses.jl.git"
+# or pkg> add "https://github.com/cswaney/NetworkHawkesProcesses.jl.git"
 ```
 
 ### Creating Processes
