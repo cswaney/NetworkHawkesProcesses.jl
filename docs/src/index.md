@@ -142,6 +142,3 @@ Several methods use multithreading to speed up computation. For all such methods
 
 ## Next Steps
 Check out our tutorials and examples to learn more about how the package works and see practical examples of its usage, or browse our API documentation for detailed information on package components.
-```@contents
-Pages = ["tutorial.md", "examples.md", "api.md"]
-```
