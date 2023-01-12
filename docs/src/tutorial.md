@@ -260,30 +260,3 @@ The discretized Gaussian family of basis functions is the only family currently 
 where ``\mu_b`` are evenly spaced on ``[1, D]``, ``\sigma = \frac{D}{B - 1}``, and ``Z`` is a normalization constant. An example of one such distribution is shown below.
 
 ![Discrete Gaussian Impulse Response](./assets/img/discrete-gaussian-impulse-response.svg)
-
-
-
-### Variational Inference (TODO)
-- Finally, discrete-time processes have an additional inference option, `vb!`, which performs [variational Bayes](https://www.jmlr.org/papers/volume3/blei03a/blei03a.pdf) inference
-- (TODO) Run `vb!` and demonstrate how the output works since it is a bit different than `mcmc!`
-
-
-## Extensions (TODO)
-The modular design of `NetworkHawkesProcesses` allows users to create custom models. Users can create custom models by mixing and matching component parts, or by creating their own components. This tutorial has already demonstrated how to replace switch model components (e.g. replacing one impulse response model for another), so let's take a look at the second option more closely.
-
-Earlier in the tutorial we mentioned that the homogeneous baseline intensity is not always an appropriate modeling assumption. `NetworkHawkesProcesses` provides an flexible alternative, `LogGaussianCoxProcess`, which we can use as a example in order to understand how to create new baseline models in general.
-
-### Networks
-Any of the core components—baselines, weights, etc.—can be customized by implementing its interface, as demonstrated above. However, `Networks` are perhaps the easiest and most interesting components to customize because the `Network` interface consists of only a handful of methods, and because many network models permit exact Gibbs sampling.
-
-At a minimum, a network model must provide the following methods:
-- `size(network)`
-- `params(network)`
-- `rand(network)`
-
-Gibbs sampling requires the additional methods:
-- `link_probability(network)`
-- `resample!(network, data)`
-
-And variational inference requires:
-- update!(network, probs)
