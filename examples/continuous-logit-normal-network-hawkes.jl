@@ -20,7 +20,7 @@ weights = DenseWeightModel(rand(nnodes, nnodes));
 impulses = LogitNormalImpulseResponse(rand(nnodes, nnodes), rand(nnodes, nnodes), Δtmax);
 network = NetworkHawkesProcesses.BernoulliNetworkModel(plink, nnodes);
 links = NetworkHawkesProcesses.rand(network);
-process = NetworkHawkesProcesses.ContinuousNetworkHawkesProcess(baseline, impulses, weights, links, network);
+process = ContinuousNetworkHawkesProcess(baseline, impulses, weights, links, network);
 println("Process is stable? $(isstable(process))")
 
 # save a copy of parameters
