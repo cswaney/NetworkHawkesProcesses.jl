@@ -34,6 +34,61 @@ function plot(process::ContinuousHawkesProcess, data; start=0.0, stop=nothing, p
     end
 end
 
+function plot(process::Baseline, data; start=0.0, stop=nothing, path=nothing)
+    events, nodes, duration = data
+    if !isnothing(stop)
+        idx = filter(t -> events[t] < stop, 1:length(events))
+        events = events[idx]
+        nodes = nodes[idx]
+    else
+        stop = duration
+    end
+    ts = Base.range(start=start, stop=stop, length=10001)
+    λ = transpose(hcat([intensity(process, t) for t in ts]...))
+    layers = []
+    for i in 1:size(λ)[2]
+        append!(layers, layer(x=ts, y=λ[:, i], Geom.line, color=[i]))
+        xs = [t for (t, c) in zip(events, nodes) if c == i]
+        λs = [intensity(process, i, t) for t in xs];
+        append!(layers, layer(x=xs, y=λs, Geom.point, color=[i]))
+    end
+    p = Gadfly.plot(layers...,
+        Scale.color_discrete_manual(palette...),
+        Guide.colorkey(title=""),
+        Guide.xlabel("t"),
+        Guide.ylabel("λ(t)"),
+        Coord.cartesian(xmin=0.0, xmax=stop, ymin=0.0)
+    )
+    if !isnothing(path)
+        img = SVG(path, 8.5inch, 4inch)
+        draw(img, p)
+    else
+        return p
+    end
+end
+
+function plot(process::Baseline, start=0.0, stop=1.0; path=nothing)
+    ts = Base.range(start=start, stop=stop, length=10001)
+    λ = transpose(hcat([intensity(process, t) for t in ts]...))
+    layers = []
+    for i in 1:size(λ)[2]
+        append!(layers, layer(x=ts, y=λ[:, i], Geom.line, color=[i]))
+    end
+    p = Gadfly.plot(layers...,
+        Scale.color_discrete_manual(palette...),
+        Guide.colorkey(title=""),
+        Guide.xlabel("t"),
+        Guide.ylabel("λ(t)"),
+        Coord.cartesian(xmin=0.0, xmax=stop, ymin=0.0)
+    )
+    if !isnothing(path)
+        img = SVG(path, 8.5inch, 4inch)
+        draw(img, p)
+    else
+        return p
+    end
+end
+
 function plot(process::DiscreteHawkesProcess, data; start=1, stop=nothing, path=nothing)
     _, duration = size(data)
     stop = isnothing(stop) ? duration : stop
