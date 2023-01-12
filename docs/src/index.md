@@ -116,25 +116,12 @@ The inference methods available depend on the type of model (see the table below
 
 
 ### Reporting Diagnostics
-The package provides several useful auxiliary methods to examine models and simulated data.
+The package provides several methods to examine models and simulated data.
 
-- `isstable(processs)` checks the stability of a Hawkes process (unstable processes will often fail to generate finite data samples).
+- `isstable(processs)` checks the stability of a Hawkes process. Unstable processes will often fail to generate finite data samples.
 - `intensity(process, data, times)` calculates the intensity of a process (given `data`) for all times in `times`.
 - `loglikelihood(process, data)` calculates the log-likelihood of a dataset.
-- `predictive_loglikelihood` calculates the *predictive* log-likelihood of a dataset, i.e., the log-likelihood of a new dataset conditional on a prior beliefs over model parameters.
 
-
-### Visualization
-The package extends `Gadfly.plot` to visualize simulated data, inference results, and process components.
-```julia
-plot(process, data)
-plot(process, intensity)
-plot(baseline, parentnode)
-plot(impulse, parentnode, childnode)
-plot(weights, links)
-plot(samples) # mcmc!
-plot(dist) # vb!
-```
 
 ### Multithreading
 Several methods use multithreading to speed up computation. For all such methods, multithreading is turned on by default and uses as many threads as available to the Julia process. To use all local CPU threads (i.e., "logical cores"), start the Julia session with `julia --threads auto`.
