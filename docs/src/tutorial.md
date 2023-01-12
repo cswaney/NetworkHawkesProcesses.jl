@@ -1,6 +1,4 @@
-# Tutorial
-
-## Background
+## Mathematical Background
 Hawkes processes are a class of inhomogeneous, autoregressive Poisson processes used to model the arrival of events that demonstrate self-exciting behavior, e.g., seismic activity. The intensity of a univariate Hawkes process given a sequence of events ``\{ s_i \}_{i=1}^N`` is given by the expression
 ```math
 \lambda(t) = \lambda^{(0)}(t) + \sum_{s_i < t} h(t - s_i \ | \ \theta),
@@ -26,7 +24,7 @@ a_{m \rightarrow n} \sim p(a_{m \rightarrow n} \ | \ \eta_{m \rightarrow n})
 
 These models–network Hawkes processes–permit simultaneous inference on the structure of a network and its event generating process. The following sections demonstrate how to use this package to construct, simulate, and perform inference on such processes.
 
-## Continuous Network Hawkes Processes
+## Continuous Processes
 This section explores the continuous-time network Hawkes process. We'll examine the component parts of the process, generate simulated data, and learn how inference works. 
 
 Let's start by reviewing the multivariate, continuous-time network Hawkes process. The process consists of ``n`` Poisson processes, with the intensity of its ``n``-th node taking the form
@@ -216,7 +214,7 @@ mean(res.samples)
     Taking the median sample is the more typical choice, but `median` doesn't work on vectors, unfortunately. Instead, we can take medians of individual elements with `median([x[1] for x in res.samples])`.
 
 
-## Discrete Network Hawkes Processes
+## Discrete Processes
 Discrete-time processes are similar to their continuous-time counterparts in most respects. Essentially, model components are discretized in the time dimension, where applicable. This means that baselines become discrete-time Poisson processes and impulse responses are translated to discrete distributions, but there is *no change* to network models or weights.
 
 What might we want to use a discrete-time model? The primary motivation for discrete-time processes is faster inference. When events occur frequently, discrete-time processes offer faster inference because several events fall into the same time bin. Thus, discrete-time inference scales linearly with number of *time bins*. In contrast, continuous-time models scale quadratically with the number of events (although this is mollified by introduction of maximal look-back periods)[^1]. In addition, the discrete-time model permits variational inference, which leads to further computational gains (at the cost of simlifying dependence structures). Furthermore, in many cases we may only have access to discrete data, which necessicates a discrete-time model.

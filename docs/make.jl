@@ -7,10 +7,10 @@ makedocs(
     sitename="NetworkHawkesProcesses.jl",
     modules=[NetworkHawkesProcesses],
     pages=[
-        "index.md",
-        "tutorial.md",
-        "examples.md",
-        "api.md",
+        "Home" => "index.md",
+        "Tutorial" => "tutorial.md",
+        "Examples" => "examples.md",
+        "API" => "api.md",
     ]
 )
 

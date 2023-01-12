@@ -1,5 +1,3 @@
-# API
-
 ## Hawkes Processes
 
 ### Continuous Processes

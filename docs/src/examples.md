@@ -1,2 +1,1 @@
-# Examples
-We're working on it!
+*Coming soon!*
