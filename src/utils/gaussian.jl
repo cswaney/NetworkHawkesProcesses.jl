@@ -3,23 +3,21 @@ import Statistics.cov
 
 abstract type Kernel end
 
+function (kernel::Kernel)(x, y) end
+
 struct SquaredExponentialKernel <: Kernel
     σ
     η
 end
 
-function cov(kernel::SquaredExponentialKernel, x, y)
-    return kernel.σ^2 * exp(-((x - y) / kernel.η)^2 / 2)
-end
+(kernel::SquaredExponentialKernel)(x, y) = kernel.σ^2 * exp(-((x - y) / kernel.η)^2 / 2)
 
 struct OrnsteinUhlenbeckKernel <: Kernel
     σ
     η
 end
 
-function cov(kernel::OrnsteinUhlenbeckKernel, x, y)
-    return kernel.σ^2 * exp(-abs(x - y) / kernel.η)
-end
+(kernel::OrnsteinUhlenbeckKernel)(x, y) = kernel.σ^2 * exp(-abs(x - y) / kernel.η)
 
 struct PeriodicKernel <: Kernel
     σ
@@ -27,9 +25,7 @@ struct PeriodicKernel <: Kernel
     θ # period
 end
 
-function cov(kernel::PeriodicKernel, x, y)
-    kernel.σ^2 * exp(-2 * (sin(π * abs(x - y) / kernel.θ) / kernel.η)^2)
-end
+(kernel::PeriodicKernel)(x, y) = kernel.σ^2 * exp(-2 * (sin(π * abs(x - y) / kernel.θ) / kernel.η)^2)
 
 
 """
@@ -58,9 +54,7 @@ function rand(gp::GaussianProcess, x)
     sigma = zeros(n, n)
     for i = 1:n
         for j = 1:i
-            xi = x[i]
-            xj = x[j]
-            sigma[i, j] = cov(gp.kernel, xi, xj)
+            sigma[i, j] = gp.kernel(x[i], x[j])
         end
     end
     sigma = posdef!(Symmetric(sigma, :L))
