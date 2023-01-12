@@ -187,9 +187,7 @@ end
 
 size(process::LogGaussianCoxProcess) = length(process.x)
 ndims(process::LogGaussianCoxProcess) = length(process.x)
-
 length(process::LogGaussianCoxProcess) = process.x[1][end] # process.x[1][1] == 0.
-
 params(process::LogGaussianCoxProcess) = vcat(process.λ...)
 
 function params!(process::LogGaussianCoxProcess, x)
@@ -343,6 +341,14 @@ function elliptical_slice(p::LogGaussianCoxProcess, data, node, y; max_attempts=
     error("Elliptical slice sampling reached maximum attempts.")
 end
 
+function intensity(p::LogGaussianCoxProcess, time::Float64)
+    return [LinearInterpolator(p.x[n], p.λ[n])(time) for n in 1:ndims(p)]
+end
+
+function intensity(p::LogGaussianCoxProcess, node::Int64, time::Float64)
+    return LinearInterpolator(p.x[node], p.λ[node])(time)
+end
+
 
 abstract type DiscreteBaseline end
 
@@ -487,6 +493,7 @@ function DiscreteLogGaussianCoxProcess(x::Vector{Int64}, λ::Vector{Float64}, K:
     return DiscreteLogGaussianCoxProcess(x, λ, Σ, m, dt)
 end
 
+import Base.range
 ndims(p::DiscreteLogGaussianCoxProcess) = size(p.λ)[2]
 start(p::DiscreteLogGaussianCoxProcess) = p.x[1]
 stop(p::DiscreteLogGaussianCoxProcess) = p.x[end]
