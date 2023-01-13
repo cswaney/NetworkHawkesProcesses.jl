@@ -415,7 +415,7 @@ function resample!(process::DiscreteNetworkHawkesProcess, data, convolved)
     return params(process)
 end
 
-function resample_adjacency_matrix!(process::DiscreteNetworkHawkesProcess, data, convolved; multithreaded=true)
+function resample_adjacency_matrix!(process::DiscreteNetworkHawkesProcess, data, convolved)
     """
         sample_adjacency_matrix!(p::DiscreteHawkesProcess, events, T)
 
@@ -425,8 +425,8 @@ function resample_adjacency_matrix!(process::DiscreteNetworkHawkesProcess, data,
     - `events::Array{Int64,2}`: `N x T` array of event counts.
     - `convolved::Array{Float64,3}`: `T x N x B` array of event counts convolved with basis functions.
     """
-    if Threads.nthreads() > 1 && multithreaded
-        @debug "> using multi-threaded sampler"
+    if Threads.nthreads() > 1
+        @debug "using multi-threaded adjacency matrix sampler"
         Threads.@threads for childnode = 1:ndims(process)
             resample_column!(process, data, convolved, childnode)
         end
