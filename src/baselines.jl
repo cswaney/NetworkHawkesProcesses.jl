@@ -4,7 +4,7 @@ import Base.rand
 import Base.size
 import Base.length
 
-function size(process::Baseline) end
+function ndims(process::Baseline) end
 function params(process::Baseline) end
 function params!(process::Baseline, x) end
 function rand(process::Baseline, duration) end
@@ -32,9 +32,7 @@ end
 
 HomogeneousProcess(λ) = HomogeneousProcess(λ, 1.0, 1.0)
 
-size(process::HomogeneousProcess) = length(process.λ)
 ndims(process::HomogeneousProcess) = length(process.λ)
-
 params(process::HomogeneousProcess) = copy(process.λ)
 
 function params!(process::HomogeneousProcess, x)
@@ -46,7 +44,7 @@ function params!(process::HomogeneousProcess, x)
 end
 
 function rand(process::HomogeneousProcess, duration)
-    nnodes = size(process)
+    nnodes = ndims(process)
     events = Array{Array{Float64,1},1}(undef, nnodes)
     nodes = Array{Array{Int64,1},1}(undef, nnodes)
     for parentnode = 1:nnodes
@@ -75,7 +73,7 @@ end
 function sufficient_statistics(process::HomogeneousProcess, data, parents)
     _, nodes, duration = data
     _, parentnodes = parents
-    nnodes = size(process)
+    nnodes = ndims(process)
     counts = node_counts(nodes, parentnodes, nnodes)
     return counts, duration
 end
