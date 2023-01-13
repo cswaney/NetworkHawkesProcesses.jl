@@ -293,7 +293,7 @@ function metropolis_hastings(process::LogGaussianCoxProcess, data, node, y0; ste
     error("Metropolis-Hastings sampling reached maximum attempts.")
 end
 
-function elliptical_slice(p::LogGaussianCoxProcess, data, node, y; max_attempts=100)
+function elliptical_slice(process::LogGaussianCoxProcess, data, node, y; max_attempts=100)
     """
         elliptical_slice(p::LogGaussianCoxProcess, data, y0)
 
@@ -304,14 +304,14 @@ function elliptical_slice(p::LogGaussianCoxProcess, data, node, y; max_attempts=
     - `y`: initial sample of the latent Gaussian process.
     """
     attempts = 1
-    v = rand(MvNormal(p.Σ), dim(p))
+    v = rand(MvNormal(process.Σ))
     u = rand()
-    lly = loglikelihood(p, data, y) + log(u)
+    lly = loglikelihood(process, data, node, y) + log(u)
     theta = 2 * pi * rand()
     theta_min = theta - 2 * pi
     theta_max = theta
     ynew = y .* cos(theta) .+ v .* sin(theta)
-    lly_new = loglikelihood(p, data, ynew)
+    lly_new = loglikelihood(process, data, node, ynew)
     if lly_new >= lly
         @debug "Elliptical slice sampling attempts: $attempts"
         return ynew
@@ -325,7 +325,7 @@ function elliptical_slice(p::LogGaussianCoxProcess, data, node, y; max_attempts=
         end
         theta = theta_min + (theta_max - theta_min) * rand()
         ynew = y .* cos(theta) .+ v .* sin(theta)
-        lly_new = loglikelihood(p, data, ynew)
+        lly_new = loglikelihood(process, data, node, ynew)
         if lly_new >= lly
             @debug "Elliptical slice sampling attempts: $attempts"
             return ynew
