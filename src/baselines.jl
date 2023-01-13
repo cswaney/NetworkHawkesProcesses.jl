@@ -132,51 +132,39 @@ For an arbitrary set of gridpoints, `x[1], ..., x[N]`, a corresponding sample of
 The process is sampled by interpolating between intensity values `λ[1], ..., λ[N]`.
 
 # Arguments
-- `x::Vector{Vector{Float64}}`: strictly increasing vectors of sampling gridpoints.
-- `λ::Vector{Vector{Float64}}`: non-negative intensity vectors, ie, `λ[i] = λ([x[i])`.
-- `Σ::Vector{Matrix{Float64}}`: apositive-definite variance matrices.
+- `x::Vector{Float64}`: a strictly increasing vectors of sampling grid points.
+- `λ::Vector{Vector{Float64}}`: a list of non-negative intensity vectors such that `λ[k][i] = λ[k]([x[i])`.
+- `Σ::Matrix{Float64}`: a positive-definite variance matrix.
 - `m::Vector{Float64}`: intensity offsets equal to `log(λ0)` of homogeneous processes.
 """
 struct LogGaussianCoxProcess <: Baseline
-    x
-    λ
-    Σ::Vector{Matrix}
-    m
+    x::Vector{Float64}
+    λ::Vector{Vector{Float64}}
+    Σ::Matrix{Float64}
+    m::Vector{Float64}
 end
 
 function LogGaussianCoxProcess(x, λ, K::Function, m)
     """Construct a LGCP process from a kernel function `K`."""
-    all([xk[1] == 0.0 for xk in x]) || error("All sampling grids must start at 0.")
-    all([xk[end] == x[1][end] for xk in x]) || error("All sampling grids must end at the same time.")
-    nnodes = length(x)
-    Σ = Vector{Matrix{Float64}}(undef, nnodes)
-    for k = 1:nnodes
-        n = length(x[k])
-        L = zeros(n, n)
-        for i = 1:n
-            for j = 1:i
-                xi = x[k][i]
-                xj = x[k][j]
-                L[i, j] = K(xi, xj)
-            end
+    x[1] == 0.0 || error("Grid points must start at 0.")
+    n = length(x)
+    L = zeros(n, n)
+    for i = 1:n
+        for j = 1:i
+            L[i, j] = K(x[i], x[j])
         end
-        Σ[k] = posdef!(Symmetric(L, :L))
     end
+    Σ = posdef!(Symmetric(L, :L))
     return LogGaussianCoxProcess(x, λ, Σ, m)
 end
 
 function LogGaussianCoxProcess(gp::GaussianProcess, m, T, n, k)
     ms = fill(m, k)
-    xs = [collect(range(0.0, length=n + 1, stop=T)) for _ in 1:k]
-    ys = Vector{Vector{Float64}}()
-    Σs = Vector{Matrix{Float64}}()
-    for x in xs
-        y, Σ = rand(gp, x)
-        push!(ys, y)
-        push!(Σs, Σ)
-    end
+    x = collect(range(0.0, length=n + 1, stop=T))
+    Σ = cov(gp, x)
+    ys = [rand(gp, x; sigma=Σ) for _ in 1:k]
     λs = [exp.(m .+ y) for (m, y) in zip(ms, ys)]
-    return LogGaussianCoxProcess(xs, λs, Σs, ms)
+    return LogGaussianCoxProcess(x, λs, Σ, ms)
 end
 
 function LogGaussianCoxProcess(nnodes, duration)
@@ -185,9 +173,8 @@ function LogGaussianCoxProcess(nnodes, duration)
     return NetworkHawkesProcesses.LogGaussianCoxProcess(gp, 0.0, duration, 10, nnodes)
 end
 
-size(process::LogGaussianCoxProcess) = length(process.x)
-ndims(process::LogGaussianCoxProcess) = length(process.x)
-length(process::LogGaussianCoxProcess) = process.x[1][end] # process.x[1][1] == 0.
+ndims(process::LogGaussianCoxProcess) = length(process.λ)
+length(process::LogGaussianCoxProcess) = process.x[end]
 params(process::LogGaussianCoxProcess) = vcat(process.λ...)
 
 function params!(process::LogGaussianCoxProcess, x)
@@ -207,11 +194,11 @@ end
 
 function rand(process::LogGaussianCoxProcess, duration)
     length(process) != duration && error("Sample duration does not match process duration.")
-    nnodes = size(process)
+    nnodes = ndims(process)
     events = Array{Array{Float64,1},1}(undef, nnodes)
     nodes = Array{Array{Int64,1},1}(undef, nnodes)
     for node = 1:nnodes
-        f = LinearInterpolator(process.x[node], process.λ[node]) # OPTIMIZATION: pre-compute on `set!`
+        f = LinearInterpolator(process.x, process.λ[node])
         events[node] = rejection_sample(f, rand(Poisson(integrate(f))))
         nodes[node] = node * ones(Int64, length(events[node]))
     end
@@ -223,12 +210,12 @@ end
 
 function rand(process::LogGaussianCoxProcess, node, duration)
     length(process) != duration && error("Sample duration does not match process duration.")
-    f = LinearInterpolator(process.x[node], process.λ[node]) # OPTIMIZATION: pre-compute on `set!`
+    f = LinearInterpolator(process.x, process.λ[node])
     return rejection_sample(f, rand(Poisson(integrate(f))))
 end
 
 function resample!(process::LogGaussianCoxProcess, data, parents; method=:elliptical_slice)
-    nnodes = size(process)
+    nnodes = ndims(process)
     data = split_extract(data, parents, nnodes)
     if Threads.nthreads() > 1
         @debug "using multi-threaded log Gaussian Cox process sampler"
@@ -268,7 +255,7 @@ end
 
 function loglikelihood(process::LogGaussianCoxProcess, data, node, y)
     events, _, _ = data[node]
-    f = LinearInterpolator(process.x[node], exp.(process.m[node] .+ y))
+    f = LinearInterpolator(process.x, exp.(process.m[node] .+ y))
     ll = 0.0
     ll -= integrate(f)
     ll += sum(log.(f.(events)))
@@ -348,14 +335,14 @@ function elliptical_slice(p::LogGaussianCoxProcess, data, node, y; max_attempts=
 end
 
 function intensity(p::LogGaussianCoxProcess, time::Float64)
-    return [LinearInterpolator(p.x[n], p.λ[n])(time) for n in 1:ndims(p)]
+    return [LinearInterpolator(p.x, p.λ[n])(time) for n in 1:ndims(p)]
 end
 
 function intensity(p::LogGaussianCoxProcess, node::Int64, time::Float64)
-    return LinearInterpolator(p.x[node], p.λ[node])(time)
+    return LinearInterpolator(p.x, p.λ[node])(time)
 end
 
-integrated_intensity(p::LogGaussianCoxProcess, duration) = integrate.(LinearInterpolator.(p.x, p.λ))
+integrated_intensity(p::LogGaussianCoxProcess, duration) = integrate.([LinearInterpolator(p.x, p.λ[k]) for k in 1:ndims(p)])
 
 
 abstract type DiscreteBaseline end

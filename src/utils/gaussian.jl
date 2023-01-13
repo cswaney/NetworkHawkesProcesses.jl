@@ -44,13 +44,9 @@ end
 
 GaussianProcess(kernel) = GaussianProcess(zero, kernel)
 
-function rand(gp::GaussianProcess, x)
+function cov(gp::GaussianProcess, x)
     """Sample a Gaussian process along grid points `x`."""
     n = length(x)
-    mu = zeros(n)
-    for i = 1:n
-        mu[i] = gp.mu(x[i])
-    end
     sigma = zeros(n, n)
     for i = 1:n
         for j = 1:i
@@ -58,5 +54,24 @@ function rand(gp::GaussianProcess, x)
         end
     end
     sigma = posdef!(Symmetric(sigma, :L))
-    return rand(MvNormal(mu, sigma)), sigma
+    return sigma
+end
+
+function rand(gp::GaussianProcess, x; sigma=nothing)
+    """Sample a Gaussian process along grid points `x`. Supplying `sigma` skips covariance computation."""
+    n = length(x)
+    mu = zeros(n)
+    for i = 1:n
+        mu[i] = gp.mu(x[i])
+    end
+    if isnothing(sigma)
+        sigma = zeros(n, n)
+        for i = 1:n
+            for j = 1:i
+                sigma[i, j] = gp.kernel(x[i], x[j])
+            end
+        end
+        sigma = posdef!(Symmetric(sigma, :L))
+    end
+    return rand(MvNormal(mu, sigma))
 end
