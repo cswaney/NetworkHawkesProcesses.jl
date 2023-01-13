@@ -10,7 +10,7 @@ Random.seed!(0);
 
 # set hyperparameters
 nnodes = 2;
-duration = 1000.0; # 100.0 or 1000.0
+duration = 100.0; # 100.0 or 1000.0
 Δtmax = 1.0;
 
 # create a random process
