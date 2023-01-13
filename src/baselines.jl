@@ -221,11 +221,11 @@ function rand(process::LogGaussianCoxProcess, duration)
     return events[idx], Vector{Int64}(nodes[idx]), duration
 end
 
-function resample!(process::LogGaussianCoxProcess, data, parents; method=:elliptical_slice, multithreaded=true)
+function resample!(process::LogGaussianCoxProcess, data, parents; method=:elliptical_slice)
     nnodes = size(process)
     data = split_extract(data, parents, nnodes)
-    if Threads.nthreads() > 1 && multithreaded
-        @debug "> using multi-threaded sampler"
+    if Threads.nthreads() > 1
+        @debug "using multi-threaded log Gaussian Cox process sampler"
         Threads.@threads for node in 1:nnodes
             resample_node!(process, data, node; method=method)
         end
@@ -549,11 +549,11 @@ function loglikelihood(process::DiscreteLogGaussianCoxProcess, data, node, y)
     return ll
 end
 
-function resample!(process::DiscreteLogGaussianCoxProcess, parents; method=:elliptical_slice, multithreaded=true)
+function resample!(process::DiscreteLogGaussianCoxProcess, parents; method=:elliptical_slice)
     nnodes = ndims(process)
     data = transpose(parents[:, :, 1])
-    if Threads.nthreads() > 1 && multithreaded
-        @debug "> using multi-threaded sampler"
+    if Threads.nthreads() > 1
+        @debug "using multi-threaded log Gaussian Cox process sampler"
         Threads.@threads for node in 1:nnodes
             resample_node!(process, data, node; method=method)
         end

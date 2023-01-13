@@ -20,7 +20,7 @@ These models--**network Hawkes processes**--permit simultaneous inference on the
 - Provides multiple estimation/inference methods
 - Supports a wide range of network specifications
 - Supports non-homogeneous baselines
-- Accelerates methods via Julia's built-in multithreading module
+- Accelerates methods via Julia's built-in `Threads` module
 
 
 ## Getting Started
@@ -123,8 +123,8 @@ The package provides several methods to examine models and simulated data.
 - `loglikelihood(process, data)` calculates the log-likelihood of a dataset.
 
 
-### Multithreading
-Several methods use multithreading to speed up computation. For all such methods, multithreading is turned on by default and uses as many threads as available to the Julia process. To use all local CPU threads (i.e., "logical cores"), start the Julia session with `julia --threads auto`.
+### multi-threading
+Several methods use multi-threading to speed up computation. For all such methods, multi-threading is automatically activated and uses as many threads as available to the Julia process. For example, to use all local CPU threads (i.e., "logical cores"), start the Julia session with `julia --threads auto`.
 
 
 ## Next Steps

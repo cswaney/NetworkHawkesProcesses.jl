@@ -56,7 +56,6 @@ Calculate the log-likelihood of `data`.
 
 # Arguments
 - `data::Tuple{Vector{Float64},Vector{Int64},Float64}`: a tuple containing a vector of events, a vector of nodes associated with each event, and the duration of the data sample.
-- `multithreaded::Bool`: use multiple threads, if possible.
 - `recursive::Bool`: use recursive formulation, if possible.
 
 # Returns
@@ -210,7 +209,7 @@ function resample!(process::ContinuousStandardHawkesProcess, data)
     return params(process)
 end
 
-function loglikelihood(process::ContinuousStandardHawkesProcess, data; multithreaded=true, recursive=true)
+function loglikelihood(process::ContinuousStandardHawkesProcess, data; recursive=true)
 
     if typeof(process.impulses) == ExponentialImpulseResponse && recursive
         return recursive_loglikelihood(process, data)
@@ -222,9 +221,9 @@ function loglikelihood(process::ContinuousStandardHawkesProcess, data; multithre
     for parentnode in nodes
         ll -= sum(process.weights.W[parentnode, :])
     end
-    if Threads.nthreads() > 1 && multithreaded
+    if Threads.nthreads() > 1
         ll = Threads.Atomic{Float64}(ll)
-        @debug "> using multiple threads"
+        @debug "using multi-threaded loglikelihood calculation"
         Threads.@threads for childindex = 1:length(events)
             childtime = events[childindex]
             childnode = nodes[childindex]
@@ -360,7 +359,7 @@ function resample!(process::ContinuousNetworkHawkesProcess, data)
     return params(process)
 end
 
-function loglikelihood(process::ContinuousNetworkHawkesProcess, data; multithreaded=true, recursive=true)
+function loglikelihood(process::ContinuousNetworkHawkesProcess, data; recursive=true)
     if typeof(process.impulses) == ExponentialImpulseResponse && recursive
         return recursive_loglikelihood(process, data)
     end
@@ -372,9 +371,9 @@ function loglikelihood(process::ContinuousNetworkHawkesProcess, data; multithrea
         ll -= sum(process.adjacency_matrix[parentnode, :] .* process.weights.W[parentnode, :])
         # ll -= sum(effective_weights(process, parentnode))
     end
-    if Threads.nthreads() > 1 && multithreaded
+    if Threads.nthreads() > 1
         ll = Threads.Atomic{Float64}(ll)
-        @debug "> using multiple threads"
+        @debug "using multi-threaded loglikelihood calculation"
         Threads.@threads for childindex = 1:length(events)
             childtime = events[childindex]
             childnode = nodes[childindex]
@@ -444,7 +443,7 @@ function recursive_loglikelihood(process::ContinuousNetworkHawkesProcess, data)
     return ll
 end
 
-function resample_adjacency_matrix!(process::ContinuousNetworkHawkesProcess, data; multithreaded=true)
+function resample_adjacency_matrix!(process::ContinuousNetworkHawkesProcess, data)
     """
         Sample the conditional posterior distribution of the adjacency matrix, `A`.
 
@@ -455,14 +454,13 @@ function resample_adjacency_matrix!(process::ContinuousNetworkHawkesProcess, dat
         - `events::Array{Array{Float64,1},1}`: an array of event time arrays in `[0, T]`.
         - `nodes::Array{Array{Int64,1},1}`: an array of node arrays in `{1, ..., N}`.
         - `durations::Array{Float64,1}`: an array of observation lengths.
-        - `multithreaded::Bool`: use multiple threads, if available (default = `true`).
     """
     _, nodes, _ = data
     nnodes = size(process)
     parentcounts = node_counts(nodes, nnodes)
     linkprob = link_probability(process.network)
-    if Threads.nthreads() > 1 && multithreaded
-        @debug "> using multi-threaded sampler"
+    if Threads.nthreads() > 1
+        @debug "using multi-threaded adjacency matrix sampler"
         Threads.@threads for childnode = 1:nnodes
             resample_column!(process, childnode, data, parentcounts, linkprob)
         end

@@ -1,16 +1,16 @@
-function resample_parents(process::ContinuousHawkesProcess, data; multithreaded=true)
+function resample_parents(process::ContinuousHawkesProcess, data)
     """Resample latent parent variables given model parameters and event data."""
     events, nodes, _ = data
     parents = Vector{Int64}(undef, length(events))
     parentnodes = Vector{Int64}(undef, length(events))
-    if Threads.nthreads() > 1 && multithreaded
-        @debug "> using multi-threaded sampler"
+    if Threads.nthreads() > 1
+        @debug "using multi-threaded parent sampler"
         Threads.@threads for index in eachindex(events)
             event = events[index]
             node = nodes[index]
-            parent, parentnodes = resample_parent(process, event, node, index, events, nodes)
+            parent, parentnode = resample_parent(process, event, node, index, events, nodes)
             parents[index] = parent
-            parentnodes[index] = parentnodes
+            parentnodes[index] = parentnode
         end
     else
         for (index, (event, node)) in enumerate(zip(events, nodes))
@@ -79,13 +79,13 @@ function parent_counts(nodes, parentnodes, nnodes)
 end
 
 
-function resample_parents(process::DiscreteHawkesProcess, data, convolved; multithreaded=true)
+function resample_parents(process::DiscreteHawkesProcess, data, convolved)
     """Resample latent parent variables given model parameters, event data, and pre-computed convolutions."""
     T, N, B = size(convolved)
     parents = zeros(Int64, T, N, 1 + N * B)
     # λ0 = intensity(p.baseline, 1:T)
-    if Threads.nthreads() > 1 && multithreaded
-        @debug "> using multi-threaded sampler"
+    if Threads.nthreads() > 1
+        @debug "using multi-threaded parent sampler"
         Threads.@threads for idx in eachindex(data)
             childnode, t = cartesian(idx, size(data))
             parents[t, childnode, :] = resample_parent(process, childnode, t, data, convolved)
@@ -133,13 +133,13 @@ function parent_counts(parents::Array{Int64,3}, ndims, nbasis)
     return counts
 end
 
-function update_parents(p::DiscreteHawkesProcess, convolved::Array{Float64,3}, α, β, κ0, ν0, κ1, ν1, γ, ρ; multithreaded=true)
+function update_parents(p::DiscreteHawkesProcess, convolved::Array{Float64,3}, α, β, κ0, ν0, κ1, ν1, γ, ρ)
     """Perform variational inference update on auxillary parent variables ("local context"). The required variational parameters are α, β, κ, ν, and γ."""
     T, N, B = size(convolved)
     is_mixture = !isa(p.network, DenseNetwork)
     u = zeros(T, N, 1 + N * B)
-    if Threads.nthreads() > 1 && multithreaded
-        @debug "> using multi-threaded sampler"
+    if Threads.nthreads() > 1
+        @debug "using multi-threaded parent updater"
         Threads.@threads for tidx = 1:T
             u[tidx, cidx, 1] = update_parent_kernel(0, cidx, nothing, α, β, κ0, ν0, κ1, ν1, γ, ρ, is_mixture)
             for pidx = 1:N
