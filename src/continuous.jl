@@ -1,7 +1,5 @@
 abstract type ContinuousHawkesProcess <: HawkesProcess end
 
-
-size(process::ContinuousHawkesProcess) = size(process.baseline)
 ndims(process::ContinuousHawkesProcess) = ndims(process.baseline)
 
 """
@@ -16,7 +14,7 @@ Sample a random sequence of events from a continuous Hawkes process.
 - `data::Tuple{Vector{Float64},Vector{Int64},Float64}`: a tuple containing a vector of events, a vector of nodes associated with each event, and the duration of the data sample.
 """
 function rand(process::ContinuousHawkesProcess, duration::Float64)
-    nnodes = size(process)
+    nnodes = ndims(process)
     events = Array{Array{Float64,1},1}(undef, nnodes)
     for parentnode = 1:nnodes
         events[parentnode] = Array{Float64,1}()
@@ -76,7 +74,7 @@ Calculate the intensity of `process` at `times` given `data`.
 - `λ::Vector{Float64}`: a `len(times)` array of intensities conditional on `data` and `process`.
 """
 function intensity(process::ContinuousHawkesProcess, data, times::Vector{Float64})
-    λs = zeros(length(times), size(process))
+    λs = zeros(length(times), ndims(process))
     for (i, t0) in enumerate(times)
         λs[i, :] = intensity(process, data, t0)
     end
@@ -85,7 +83,7 @@ end
 
 function intensity(process::ContinuousHawkesProcess, data, time::Float64)
     events, nodes, _ = data
-    nnodes = size(process)
+    nnodes = ndims(process)
     idx = time - process.impulses.Δtmax .< events .< time
     λ = zeros(nnodes)
     for childnode = 1:nnodes
@@ -132,7 +130,7 @@ end
 
 function _generate_children!_(events, parentevent, parentnode, process::ContinuousStandardHawkesProcess, duration)
     t0 = parentevent
-    nnodes = size(process)
+    nnodes = ndims(process)
     for childnode = 1:nnodes
         nchildren = rand(process.weights, parentnode, childnode)
         childevents = t0 .+ rand(process.impulses, parentnode, childnode, nchildren)
@@ -242,7 +240,7 @@ end
 
 function recursive_loglikelihood(process::ContinuousStandardHawkesProcess, data)
     events, nodes, duration = data
-    nnodes = size(process)
+    nnodes = ndims(process)
     ll = 0.0
     ll -= sum(integrated_intensity(process.baseline, duration))
     for parentnode in nodes
@@ -336,7 +334,7 @@ end
 
 function _generate_children!_(events, parentevent, parentnode, process::ContinuousNetworkHawkesProcess, duration)
     t0 = parentevent
-    nnodes = size(process)
+    nnodes = ndims(process)
     for childnode = 1:nnodes
         if process.adjacency_matrix[parentnode, childnode] == 1
             nchildren = rand(process.weights, parentnode, childnode)
@@ -408,7 +406,7 @@ end
 
 function recursive_loglikelihood(process::ContinuousNetworkHawkesProcess, data)
     events, nodes, duration = data
-    nnodes = size(process)
+    nnodes = ndims(process)
     ll = 0.0
     ll -= sum(integrated_intensity(process.baseline, duration))
     for parentnode in nodes
@@ -456,7 +454,7 @@ function resample_adjacency_matrix!(process::ContinuousNetworkHawkesProcess, dat
         - `durations::Array{Float64,1}`: an array of observation lengths.
     """
     _, nodes, _ = data
-    nnodes = size(process)
+    nnodes = ndims(process)
     parentcounts = node_counts(nodes, nnodes)
     linkprob = link_probability(process.network)
     if Threads.nthreads() > 1
@@ -474,7 +472,7 @@ end
 function resample_column!(process::ContinuousNetworkHawkesProcess, node, data, nodecounts, linkprob)
     """Resample the `node`-th column of the adjacency matrix."""
     events, nodes, duration = data
-    for parentnode = 1:size(process)
+    for parentnode = 1:ndims(process)
         process.adjacency_matrix[parentnode, node] = 0.0
         ll0 = -integrated_intensity(process, node, nodecounts, duration)
         ll0 += sum_log_intensity(process, node, events, nodes)
@@ -491,7 +489,7 @@ end
 function integrated_intensity(process::ContinuousNetworkHawkesProcess, node, nodecounts, duration)
     """Calculate integrated intensity on `node`. `nodecounts` holds the number of events on each node."""
     I = integrated_intensity(process.baseline, node, duration)
-    for parentnode = 1:size(process)
+    for parentnode = 1:ndims(process)
         a = process.adjacency_matrix[parentnode, node]
         w = process.weights.W[parentnode, node]
         I += a * w * nodecounts[parentnode]
