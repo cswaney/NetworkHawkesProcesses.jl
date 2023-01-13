@@ -11,7 +11,7 @@ Random.seed!(0);
 
 # set hyperparameters
 nnodes = 2;
-duration = 1000.0; # 100.0 or 1000.0
+duration = 100.0; # 100.0 or 1000.0
 Δtmax = 1.0;
 sigma = 1.0
 eta = 1.0
@@ -19,9 +19,9 @@ bias = 0.0
 nsteps = 10
 
 # create a random process
-kernel = SquaredExponentialKernel(sigma, eta)
-gp = GaussianProcess(kernel)
-baseline = LogGaussianCoxProcess(gp, bias, duration, nsteps, nnodes)
+kernel = SquaredExponentialKernel(sigma, eta);
+gp = GaussianProcess(kernel);
+baseline = LogGaussianCoxProcess(gp, bias, duration, nsteps, nnodes);
 weights = DenseWeightModel(rand(nnodes, nnodes));
 impulses = LogitNormalImpulseResponse(rand(nnodes, nnodes), rand(nnodes, nnodes), Δtmax);
 process = ContinuousStandardHawkesProcess(baseline, impulses, weights);

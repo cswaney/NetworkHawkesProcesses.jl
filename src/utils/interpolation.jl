@@ -11,10 +11,10 @@ function (f::Interpolator)(x) end
 """
     LinearInterpolator
 
-A linear interpolation between values `y` evaluated at gridpoints `x`.
+A linear interpolation between values `y` evaluated at grid points `x`.
 
 # Arguments
-- `x::Vector{Float64}`: a vector of gridpoints
+- `x::Vector{Float64}`: a vector of grid points
 - `y::Vector{Float64}`: a vector of function values
 """
 struct LinearInterpolator <: Interpolator
@@ -26,7 +26,7 @@ end
 LinearInterpolator(x, y) = LinearInterpolator(x, y, missing)
 
 function interpolate(f::LinearInterpolator, x0)
-    """Evaluate the linear interpolation at a point."""
+    """Evaluate the linear interpolator at a point."""
     (x0 < f.x[1] || x0 > f.x[end]) && error("Value is outside function support")
     for i in 1:nsteps(f)
         if x0 >= f.x[i] && x0 < f.x[i+1]
@@ -76,8 +76,8 @@ A discrete linear interpolater between values `y` evaluated at gridpoints `x`.
 - `y::Vector{Float64}`: a vector of function values
 """
 struct DiscreteLinearInterpolator <: Interpolator
-    x::Array{Int64,1}
-    y::Array{Float64,2}
+    x::Vector{Int64}
+    y::Vector{Float64}
     I::Union{Float64,Missing}
 end
 
