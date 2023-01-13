@@ -13,7 +13,7 @@ This package implements methods to simulate and estimate mutually-exciting Hawke
 - Provides multiple estimation/inference methods
 - Supports a wide range of network specifications
 - Supports non-homogeneous baselines
-- Accelerates methods via Julia's built-in multithreading module
+- Accelerates methods via Julia's built-in `Threads` module
 
 ## Installation
 ```julia
