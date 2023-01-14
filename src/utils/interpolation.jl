@@ -76,7 +76,7 @@ A discrete linear interpolater between values `y` evaluated at gridpoints `x`.
 - `y::Vector{Float64}`: a vector of function values
 """
 struct DiscreteLinearInterpolator <: Interpolator
-    x::Vector{Int64}
+    x::Vector{Float64}
     y::Vector{Float64}
     I::Union{Float64,Missing}
 end

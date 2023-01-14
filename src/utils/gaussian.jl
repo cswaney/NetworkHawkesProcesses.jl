@@ -5,6 +5,17 @@ abstract type Kernel end
 
 function (kernel::Kernel)(x, y) end
 
+function (kernel::Kernel)(x::Vector)
+    n = length(x)
+    Σ = zeros(n, n)
+    for i = 1:n
+        for j = 1:i
+            Σ[i, j] = K(x[i], x[j])
+        end
+    end
+    return posdef!(Symmetric(Σ, :L))
+end
+
 struct SquaredExponentialKernel <: Kernel
     σ
     η
