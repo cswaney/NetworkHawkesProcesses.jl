@@ -34,7 +34,7 @@ function plot(process::ContinuousHawkesProcess, data; start=0.0, stop=nothing, p
     end
 end
 
-function plot(process::Baseline, data; start=0.0, stop=nothing, path=nothing)
+function plot(process::Baseline, data::Tuple; start=0.0, stop=nothing, path=nothing)
     events, nodes, duration = data
     if !isnothing(stop)
         idx = filter(t -> events[t] < stop, 1:length(events))
