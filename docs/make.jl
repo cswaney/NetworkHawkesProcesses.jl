@@ -14,6 +14,6 @@ makedocs(
     ]
 )
 
-# deploydocs(
-#     repo = "github.com/cswaney/NetworkHawkesProcesses.jl.git",
-# )
+deploydocs(
+    repo="github.com/cswaney/NetworkHawkesProcesses.jl.git",
+)
