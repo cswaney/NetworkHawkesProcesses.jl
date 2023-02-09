@@ -1,4 +1,4 @@
-[![Build Status](https://app.travis-ci.com/cswaney/NetworkHawkesProcesses.jl.svg?branch=master)](https://app.travis-ci.com/cswaney/NetworkHawkesProcesses.jl)
+[![Build Status](https://github.com/cswaney/NetworkHawkesProcesses.jl/actions/workflows/github-actions-ci.yml/badge.svg)](https://github.com/cswaney/NetworkHawkesProcesses.jl/actions/workflows/github-actions-ci.yml)
 
 # NetworkHawkesProcesses.jl
 Network Hawkes processes in Julia.
