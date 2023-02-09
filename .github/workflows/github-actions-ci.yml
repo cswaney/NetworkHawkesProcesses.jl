@@ -1,4 +1,4 @@
-name: Continuous Integration
+name: CI
 run-name: continuous integration
 on:
   push:
