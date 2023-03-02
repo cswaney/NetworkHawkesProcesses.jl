@@ -91,19 +91,23 @@ end
 
 function integrated_intensity(process::HomogeneousProcess, duration)
     """Calculate the integral of the intensity."""
+    duration < 0 && throw(ArgumentError("duration must be non-negative"))
     return process.λ .* duration
 end
 
 function integrated_intensity(process::HomogeneousProcess, node, duration)
     """Calculate the integral of the intensity."""
+    duration < 0 && throw(ArgumentError("duration must be non-negative"))
     return process.λ[node] .* duration
 end
 
 function intensity(process::HomogeneousProcess, time::Float64)
+    time < 0 && throw(ArgumentError("time must be non-negative"))
     return process.λ
 end
 
 function intensity(process::HomogeneousProcess, node::Int64, time::Float64)
+    time < 0 && throw(ArgumentError("time must be non-negative"))
     return process.λ[node]
 end
 
