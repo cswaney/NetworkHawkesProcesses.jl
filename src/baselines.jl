@@ -28,6 +28,12 @@ mutable struct HomogeneousProcess <: Baseline
     λ
     α0
     β0
+    function HomogeneousProcess(λ, α0, β0)
+        any(λ .< 0) && throw(DomainError(λ, "HomogeneousProcess: intensity parameter λ must be non-negative"))
+        α0 > 0 || throw(DomainError(α0, "HomogeneousProcess: shape parameter α0 must be positive"))
+        β0 > 0 || throw(DomainError(β0, "HomogeneousProcess: rate parameter β0 must be positive"))
+        return new(λ, α0, β0)
+    end
 end
 
 HomogeneousProcess(λ) = HomogeneousProcess(λ, 1.0, 1.0)
@@ -91,23 +97,23 @@ end
 
 function integrated_intensity(process::HomogeneousProcess, duration)
     """Calculate the integral of the intensity."""
-    duration < 0 && throw(ArgumentError("duration must be non-negative"))
+    duration < 0 && throw(DomainError("duration must be non-negative"))
     return process.λ .* duration
 end
 
 function integrated_intensity(process::HomogeneousProcess, node, duration)
     """Calculate the integral of the intensity."""
-    duration < 0 && throw(ArgumentError("duration must be non-negative"))
+    duration < 0 && throw(DomainError("duration must be non-negative"))
     return process.λ[node] .* duration
 end
 
 function intensity(process::HomogeneousProcess, time::Float64)
-    time < 0 && throw(ArgumentError("time must be non-negative"))
+    time < 0 && throw(DomainError("time must be non-negative"))
     return process.λ
 end
 
 function intensity(process::HomogeneousProcess, node::Int64, time::Float64)
-    time < 0 && throw(ArgumentError("time must be non-negative"))
+    time < 0 && throw(DomainError("time must be non-negative"))
     return process.λ[node]
 end
 
