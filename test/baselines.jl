@@ -2,10 +2,22 @@ using NetworkHawkesProcesses: node_counts
 using Test
 
 @testset "HomogeneousProcess" begin
+
     nodes = [1, 1, 2, 2]
     parentnodes = [0, 1, 0, 2]
     nnodes = 2
     @test node_counts(nodes, parentnodes, nnodes) == [1, 1]
+
+    nodes = []
+    parentnodes = []
+    nnodes = 2
+    @test node_counts(nodes, parentnodes, nnodes) == [0, 0]
+
+    nodes = [1, 1, 2, 2]
+    parentnodes = [1, 2, 1, 2]
+    nnodes = 2
+    @test node_counts(nodes, parentnodes, nnodes) == [0, 0]
+    
 end
 
 # @testset begin "HomogeneousProcess"
