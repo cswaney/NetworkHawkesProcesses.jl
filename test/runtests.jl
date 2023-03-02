@@ -7,8 +7,12 @@ Random.seed!(0)
 
 @testset verbose = true "NetworkHawkesProcesses.jl" begin
 
-    @testset "Baselines" begin
+    @testset "baselines" begin
         include("baselines.jl")
+    end
+
+    @testset "gaussian" begin
+        include("gaussian.jl")
     end
 
     # @static if VERSION == v"1.6"
