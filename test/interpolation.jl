@@ -1,5 +1,5 @@
 using NetworkHawkesProcesses
-using NetworkHawkesProcesses: LinearInterpolator, DiscreteLinearInterpolator, integrate
+using NetworkHawkesProcesses: LinearInterpolator, integrate
 using Test
 
 @testset "LinearInterpolator" begin
