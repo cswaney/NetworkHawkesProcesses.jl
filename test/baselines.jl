@@ -2,7 +2,7 @@ using NetworkHawkesProcesses
 using NetworkHawkesProcesses: node_counts
 using NetworkHawkesProcesses: split_extract
 using NetworkHawkesProcesses: SquaredExponentialKernel, GaussianProcess
-using NetworkHawkesProcesses: sufficient_statistics, integrated_intensity
+using NetworkHawkesProcesses: sufficient_statistics, integrated_intensity, update!
 using Test
 
 @testset "HomogeneousProcess" begin
@@ -83,6 +83,7 @@ end
     @test_throws DomainError integrated_intensity(process, 0, 1.0)
     @test_throws DomainError integrated_intensity(process, 3, 1.0)
     @test_throws DomainError integrated_intensity(process, 1, -1.0)
-end
 
+    @test_throws ArgumentError update!(process, zeros(2, 10), zeros(2, 10, 1))
+end
 

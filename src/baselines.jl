@@ -444,6 +444,7 @@ end
 function update!(process::DiscreteHomogeneousProcess, data, parents)
     """Perform a variational inference update. `parents` is the `T x N x (1 + NB)` variational parameter for the auxillary parent variables.
     """
+    size(data) != size(parents)[[2, 1]] && throw(ArgumentError("update!: data and parent dimensions do not conform"))
     N, T = size(data)
     process.αv = process.α0 .+ sum(parents[:, :, 1] .* transpose(data), dims=1)
     process.βv = 1 ./ process.β0 .+ T .* process.dt .* ones(N)
