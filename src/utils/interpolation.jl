@@ -16,6 +16,7 @@ A linear interpolation between values `y` evaluated at grid points `x`.
 # Arguments
 - `x::Vector{Float64}`: a vector of grid points
 - `y::Vector{Float64}`: a vector of function values
+- `I::Union{Float64,Missing}`: the integral of the interpolation
 """
 struct LinearInterpolator <: Interpolator
     x::Vector{Float64}
