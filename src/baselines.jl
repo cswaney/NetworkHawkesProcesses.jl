@@ -140,36 +140,31 @@ For an arbitrary set of gridpoints, `x[1], ..., x[N]`, a corresponding sample of
 The process is sampled by interpolating between intensity values `λ[1], ..., λ[N]`.
 
 # Arguments
-- `x::Vector{Float64}`: a strictly increasing vectors of sampling grid points.
+- `x::Vector{Float64}`: a strictly increasing vectors of sampling grid points starting from x[1] = 0.0.
 - `λ::Vector{Vector{Float64}}`: a list of non-negative intensity vectors such that `λ[k][i] = λ[k]([x[i])`.
-- `Σ::Matrix{Float64}`: a positive-definite variance matrix.
+- `Σ::PDMat{Float64}`: a positive-definite variance matrix.
 - `m::Vector{Float64}`: intensity offsets equal to `log(λ0)` of homogeneous processes.
 """
 struct LogGaussianCoxProcess <: Baseline
     x::Vector{Float64}
     λ::Vector{Vector{Float64}}
-    Σ::Matrix{Float64}
+    Σ::PDMat{Float64}
     m::Float64
+    function LogGaussianCoxProcess(x, λ, Σ, m)
+        x[1] == 0.0 || throw(DomainError(x, "Grid points x must start at 0."))
+        return new(x, λ, PDMat(Σ), m)
+    end
 end
 
-function LogGaussianCoxProcess(x, λ, K::Function, m)
-    """Construct a LGCP process from a kernel function `K`."""
-    x[1] == 0.0 || error("Grid points must start at 0.")
-    return LogGaussianCoxProcess(x, λ, K(x), m)
-end
+LogGaussianCoxProcess(x, λ, K::Kernel, m) = LogGaussianCoxProcess(x, λ, K(x), m)
 
 function LogGaussianCoxProcess(gp::GaussianProcess, m, T, n, k)
-    x = collect(range(0.0, length=n+1, stop=T))
+    """Construct a LGCP with random intensity given a Gaussian process."""
+    x = range(0.0, length=n+1, stop=T)
     Σ = cov(gp, x)
     ys = [rand(gp, x; sigma=Σ) for _ in 1:k]
     λ = [exp.(m .+ y) for y in ys]
     return LogGaussianCoxProcess(x, λ, Σ, m)
-end
-
-function LogGaussianCoxProcess(nnodes, duration)
-    kernel = NetworkHawkesProcesses.SquaredExponentialKernel(1.0, 1.0)
-    gp = NetworkHawkesProcesses.GaussianProcess(kernel)
-    return NetworkHawkesProcesses.LogGaussianCoxProcess(gp, 0.0, duration, 10, nnodes)
 end
 
 ndims(process::LogGaussianCoxProcess) = length(process.λ)
