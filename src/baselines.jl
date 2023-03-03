@@ -419,9 +419,9 @@ function resample!(p::DiscreteHomogeneousProcess, parents)
 end
 
 function sufficient_statistics(p::DiscreteHomogeneousProcess, data)
-    T, _ = size(data)
-    Mn = sum(data, dims=[1])
-    return Mn, T
+    _, T = size(data)
+    Mn = sum(data, dims=[2])
+    return vec(Mn), T
 end
 
 function integrated_intensity(process::DiscreteHomogeneousProcess, duration)
