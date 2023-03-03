@@ -399,9 +399,16 @@ function rand(p::DiscreteHomogeneousProcess, T::Int64)
     return vcat(transpose(rand.(Poisson.(p.λ .* p.dt), T))...)
 end
 
-intensity(p::DiscreteHomogeneousProcess, ts) = Matrix(transpose(repeat(p.λ, 1, length(ts)))) .* p.dt
+function intensity(p::DiscreteHomogeneousProcess, ts)
+    any(ts .< 0.0) && throw(DomainError(ts, "intensity: times ts must be non-negative"))
+    Matrix(transpose(repeat(p.λ, 1, length(ts)))) .* p.dt
+end
 
-intensity(p::DiscreteHomogeneousProcess, node, time) = p.λ[node] .* p.dt
+function intensity(p::DiscreteHomogeneousProcess, node, time)
+    (node < 1 || node > ndims(p)) && throw(DomainError(node, "intensity: node must be between one and ndims"))
+    time < 0.0 && throw(DomainError(time, "intensity: time must be non-negative"))
+    p.λ[node] .* p.dt
+end
 
 function resample!(p::DiscreteHomogeneousProcess, parents)
     Mn, T = sufficient_statistics(p, parents[:, :, 1])

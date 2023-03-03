@@ -65,4 +65,11 @@ end
     @test_throws DomainError DiscreteHomogeneousProcess(ones(2), 1.0, 1.0, ones(2), [1.0, 0.0], 1.0)
     @test_throws DomainError DiscreteHomogeneousProcess(ones(2), 0.0)
 
+    process = DiscreteHomogeneousProcess(ones(2), 0.5)
+    @test intensity(process, 0.0:0.1:1.0) == 0.5 * ones(11, 2)
+    @test intensity(process, 1, 0.0) == intensity(process, 2, 0.0) == 0.5
+    @test_throws DomainError intensity(process, 0, 0.0)
+    @test_throws DomainError intensity(process, 3, 0.0)
+    @test_throws DomainError intensity(process, 1, -1.0)
+    @test_throws DomainError intensity(process, -0.1:0.1:1.0)
 end
