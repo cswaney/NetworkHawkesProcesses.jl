@@ -15,6 +15,10 @@ Random.seed!(0)
         include("gaussian.jl")
     end
 
+    @testset "interpolation" begin
+        include("interpolation.jl")
+    end
+
     # @static if VERSION == v"1.6"
     #     using Documenter
     #     @testset "Docs" begin
