@@ -28,7 +28,7 @@ LinearInterpolator(x, y) = LinearInterpolator(x, y, missing)
 
 function interpolate(f::LinearInterpolator, x0)
     """Evaluate the linear interpolator at a point."""
-    (x0 < f.x[1] || x0 > f.x[end]) && error("Value is outside function support")
+    (x0 < f.x[1] || x0 > f.x[end]) && throw(DomainError(x0, "Value is outside interpolation support $((f.x[1], f.x[end]))"))
     for i in 1:nsteps(f)
         if x0 >= f.x[i] && x0 < f.x[i+1]
             return (f.y[i+1] * (x0 - f.x[i]) + f.y[i] * (f.x[i+1] - x0)) / (f.x[i+1] - f.x[i])
