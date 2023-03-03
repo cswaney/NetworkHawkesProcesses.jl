@@ -426,11 +426,14 @@ end
 
 function integrated_intensity(process::DiscreteHomogeneousProcess, duration)
     """Calculate the integral of the intensity."""
+    duration < 0.0 && throw(DomainError(duration, "intensity: duration must be non-negative"))
     return process.λ .* process.dt .* duration
 end
 
 function integrated_intensity(process::DiscreteHomogeneousProcess, node, duration)
     """Calculate the integral of the intensity on a single node."""
+    (node < 1 || node > ndims(process)) && throw(DomainError(node, "intensity: node must be between one and ndims"))
+    duration < 0.0 && throw(DomainError(duration, "intensity: duration must be non-negative"))
     return process.λ[node] * process.dt * duration
 end
 

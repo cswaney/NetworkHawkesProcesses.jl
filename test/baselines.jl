@@ -2,7 +2,7 @@ using NetworkHawkesProcesses
 using NetworkHawkesProcesses: node_counts
 using NetworkHawkesProcesses: split_extract
 using NetworkHawkesProcesses: SquaredExponentialKernel, GaussianProcess
-using NetworkHawkesProcesses: sufficient_statistics
+using NetworkHawkesProcesses: sufficient_statistics, integrated_intensity
 using Test
 
 @testset "HomogeneousProcess" begin
@@ -76,5 +76,13 @@ end
 
     data = [0 0 0 1 0 1 0 0 0 1; 2 0 0 0 0 0 0 0 0 0]
     @test sufficient_statistics(process, data) == ([3, 2], 10)
+
+    @test integrated_intensity(process, 1.0) == [0.5, 0.5]
+    @test integrated_intensity(process, 2.0) == [1.0, 1.0]
+    @test_throws DomainError integrated_intensity(process, -1.0)
+    @test_throws DomainError integrated_intensity(process, 0, 1.0)
+    @test_throws DomainError integrated_intensity(process, 3, 1.0)
+    @test_throws DomainError integrated_intensity(process, 1, -1.0)
 end
+
 
