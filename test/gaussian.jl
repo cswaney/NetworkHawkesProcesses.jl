@@ -16,8 +16,3 @@ using Test
     @test kernel(0.0, 0.0) == kernel(0.0, 1.0) == kernel(0.0, -1.0)
 
 end
-
-@testset "GaussianProcess" begin
-
-
-end

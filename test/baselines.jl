@@ -1,5 +1,7 @@
+using NetworkHawkesProcesses
 using NetworkHawkesProcesses: node_counts
 using NetworkHawkesProcesses: split_extract
+using NetworkHawkesProcesses: SquaredExponentialKernel, GaussianProcess
 using Test
 
 @testset "HomogeneousProcess" begin
@@ -35,5 +37,27 @@ end
     data = ([0.1, 0.2, 0.3, 0.4], [1, 1, 2, 2], 1.0)
     parents = ([], [1, 1, 2, 2])
     @test split_extract(data, parents, 2) == [([], [], 1.), ([], [], 1.)]
+
+
+    kernel = SquaredExponentialKernel(1.0, 1.0)
+    gp = GaussianProcess(kernel)
+    x = 0.0:0.1:1.0
+    y = rand(gp, x)
+    λ = [exp.(y)]
+    process = LogGaussianCoxProcess(x, λ, kernel, 0.0)
+    @test ndims(process) == 1
+    @test length(process) == 1.0
+
+    ys = [rand(gp, x), rand(gp, x)]
+    λ = [exp.(y) for y in ys]
+    process = LogGaussianCoxProcess(x, λ, kernel, 0.0)
+    @test ndims(process) == 2
+    @test length(process) == 1.0
+
+    # loglikelihood?
+
+    # intensity?
+
+    # integrated_intensity?
 
 end
