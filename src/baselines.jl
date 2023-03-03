@@ -362,6 +362,15 @@ mutable struct DiscreteHomogeneousProcess <: DiscreteBaseline
     αv::Vector{Float64}
     βv::Vector{Float64}
     dt::Float64
+    function DiscreteHomogeneousProcess(λ, α0, β0, αv, βv, dt)
+        any(λ .< 0) && throw(DomainError(λ, "DiscreteHomogeneousProcess: intensity parameter λ must be non-negative"))
+        α0 > 0 || throw(DomainError(α0, "DiscreteHomogeneousProcess: shape parameter α0 must be positive"))
+        β0 > 0 || throw(DomainError(β0, "DiscreteHomogeneousProcess: rate parameter β0 must be positive"))
+        all(αv .> 0) || throw(DomainError(αv, "DiscreteHomogeneousProcess: shape parameter αv must be positive"))
+        all(βv .> 0) || throw(DomainError(βv, "DiscreteHomogeneousProcess: rate parameter βv must be positive"))
+        dt > 0.0 || throw(DomainError(dt, "DiscreteHomogeneousProcess: time step dt must be non-negative"))
+        return new(λ, α0, β0, αv, βv, dt)
+    end
 end
 
 function DiscreteHomogeneousProcess(λ, dt=1.0)
@@ -373,9 +382,7 @@ function DiscreteHomogeneousProcess(λ, dt=1.0)
 end
 
 ndims(p::DiscreteHomogeneousProcess) = length(p.λ)
-
 params(p::DiscreteHomogeneousProcess) = copy(p.λ)
-
 nparams(p::DiscreteHomogeneousProcess) = length(p.λ)
 
 function params!(p::DiscreteHomogeneousProcess, x)

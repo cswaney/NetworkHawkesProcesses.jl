@@ -54,10 +54,15 @@ end
     @test ndims(process) == 2
     @test length(process) == 1.0
 
-    # loglikelihood?
+end
 
-    # intensity?
-
-    # integrated_intensity?
+@testset "DiscreteHomogeneousProcess" begin
+    
+    @test_throws DomainError DiscreteHomogeneousProcess([1.0, -1.0])
+    @test_throws DomainError DiscreteHomogeneousProcess(ones(2), 0.0, 1.0, ones(2), ones(2), 1.0)
+    @test_throws DomainError DiscreteHomogeneousProcess(ones(2), 1.0, 0.0, ones(2), ones(2), 1.0)
+    @test_throws DomainError DiscreteHomogeneousProcess(ones(2), 1.0, 1.0, [0.0, 1.0], ones(2), 1.0)
+    @test_throws DomainError DiscreteHomogeneousProcess(ones(2), 1.0, 1.0, ones(2), [1.0, 0.0], 1.0)
+    @test_throws DomainError DiscreteHomogeneousProcess(ones(2), 0.0)
 
 end
