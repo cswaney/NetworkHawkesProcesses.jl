@@ -5,7 +5,7 @@ abstract type Kernel end
 
 function (kernel::Kernel)(x, y) end
 
-function (kernel::Kernel)(x::AbstractVector)
+function (kernel::Kernel)(x::Vector)
     n = length(x)
     Σ = zeros(n, n)
     for i = 1:n

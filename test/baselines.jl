@@ -42,7 +42,7 @@ end
 
     kernel = SquaredExponentialKernel(1.0, 1.0)
     gp = GaussianProcess(kernel)
-    x = 0.0:0.1:1.0
+    x = collect(0.0:0.1:1.0)
     y = rand(gp, x)
     λ = [exp.(y)]
     process = LogGaussianCoxProcess(x, λ, kernel, 0.0)
