@@ -91,7 +91,7 @@ function VariationalInference(process::HawkesProcess)
 end
 
 function show(io::IO, res::VariationalInference)
-    print(io, "\n* Status: complete\n    steps: $(res.steps)\n    elapsed: $(res.elapsed)")
+    print(io, "\n* Status: $(res.status)\n    steps: $(res.steps)\n    elapsed: $(res.elapsed)")
 end
 
 function convergence_criteria(res::VariationalInference)
