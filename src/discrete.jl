@@ -364,7 +364,13 @@ function resample!(process::DiscreteStandardHawkesProcess, data, convolved)
     return params(process)
 end
 
-function update!(process::DiscreteStandardHawkesProcess, data, convolved) end
+function update!(process::DiscreteStandardHawkesProcess, data, convolved)
+    parents = update_parents(process, convolved)
+    update!(process.baseline, parents)
+    update!(process.weights, parents)
+    update!(process.impulses, parents)
+    return variational_params(process)
+end
 
 function impulse_response(process::DiscreteStandardHawkesProcess, parentnode, childnode, lag)
     return process.weights.W[parentnode, childnode] * process.impulses.ϕ[parentnode, childnode, lag]
