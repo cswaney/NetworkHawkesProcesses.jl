@@ -281,7 +281,7 @@ end
 function DiscreteGaussianImpulseResponse(θ, nlags, dt=1.0)
     all(sum(θ, dims=3) .== 1.0) || error("Invalid discrete basis parameter.")
     γ = 1.
-    γv = ones(size(θ)[1:2])
+    γv = ones(size(θ))
     impulse = DiscreteGaussianImpulseResponse(θ, γ, γv, nlags, dt, nothing)
     impulse.ϕ = intensity(impulse)
     return impulse
@@ -355,7 +355,7 @@ end
 function update!(impulse::DiscreteGaussianImpulseResponse, data, parents)
     """Perform a variational inference update. `parents` is the `T x N x (1 + NB)` variational parameter for the auxillary parent variables."""
     N, T = size(data)
-    _, _, B = size(p.θ)
+    _, _, B = size(impulse.θ)
     γ = zeros(N, N, B)
     for pidx = 1:N
         for cidx = 1:N
@@ -366,6 +366,15 @@ function update!(impulse::DiscreteGaussianImpulseResponse, data, parents)
             end
         end
     end
-    impulse.γv = impulse.γ0 .+ γ
+    impulse.γv = impulse.γ .+ γ
     return copy(impulse.γv)
+end
+
+function variational_log_expectation(impulse::DiscreteGaussianImpulseResponse, pidx, cidx)
+    return digamma.(impulse.γv[pidx, cidx, :]) .- digamma(sum(impulse.γv[pidx, cidx, :]))
+end
+
+function q(impulse::DiscreteGaussianImpulseResponse)
+    idx = CartesianIndices(impulse.γv[:, :, 1])
+    return reshape([Dirichlet(impulse.γv[idx[i], :]) for i in eachindex(impulse.γv[:, :, 1])], size(impulse.θ)[1:2])
 end
