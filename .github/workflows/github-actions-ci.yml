@@ -27,7 +27,7 @@ jobs:
         include:
           - os: macOS-latest
             version: '1.8'
-            arch: x86
+            arch: x64
     steps:
       - uses: actions/checkout@v3
       - uses: julia-actions/setup-julia@v1
