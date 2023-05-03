@@ -10,7 +10,7 @@ function (kernel::Kernel)(x::Vector)
     Σ = zeros(n, n)
     for i = 1:n
         for j = 1:i
-            Σ[i, j] = K(x[i], x[j])
+            Σ[i, j] = kernel(x[i], x[j])
         end
     end
     return posdef!(Symmetric(Σ, :L))
@@ -44,29 +44,29 @@ GaussianProcess
 
 A 1-dimensional Gaussian process.
 
+Defines a distribution over trajectories `f(x)` on a domain `[a, b]` such that:
+
+    E[f(x)] = mu(x)
+    cov[f(x), f(y)] = kernel(x, y)
+
+for all `x, y ∈ [a, b]`. Drawing a discretized sample `f = [f(x[1]), ..., f(x[n])]` is equivalent to sampling a multivariate Gaussian:
+
+    f ~ N(μ, Σ)
+    μ[i] = mu(x[i])
+    Σ[i, j] = kernel(x[i], x[j])
+
 # Arguments
 - `mu`: mean function
 - `kernel`: covariance function
 """
 struct GaussianProcess
-    mu # x -> mu(x)
+    mu::Function
     kernel::Kernel
 end
 
 GaussianProcess(kernel) = GaussianProcess(zero, kernel)
 
-function cov(gp::GaussianProcess, x)
-    """Sample a Gaussian process along grid points `x`."""
-    n = length(x)
-    sigma = zeros(n, n)
-    for i = 1:n
-        for j = 1:i
-            sigma[i, j] = gp.kernel(x[i], x[j])
-        end
-    end
-    sigma = posdef!(Symmetric(sigma, :L))
-    return sigma
-end
+cov(gp::GaussianProcess, x) = gp.kernel(x)
 
 function rand(gp::GaussianProcess, x; sigma=nothing)
     """Sample a Gaussian process along grid points `x`. Supplying `sigma` skips covariance computation."""
@@ -76,13 +76,7 @@ function rand(gp::GaussianProcess, x; sigma=nothing)
         mu[i] = gp.mu(x[i])
     end
     if isnothing(sigma)
-        sigma = zeros(n, n)
-        for i = 1:n
-            for j = 1:i
-                sigma[i, j] = gp.kernel(x[i], x[j])
-            end
-        end
-        sigma = posdef!(Symmetric(sigma, :L))
+        sigma = cov(gp, x)
     end
     return rand(MvNormal(mu, sigma))
 end

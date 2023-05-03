@@ -1,5 +1,3 @@
-# TODO - A single Interpolator struct can replace the continuous and discrete versions here...
-
 abstract type Interpolator end
 
 nnodes(f::Interpolator) = length(f.x)
@@ -16,6 +14,7 @@ A linear interpolation between values `y` evaluated at grid points `x`.
 # Arguments
 - `x::Vector{Float64}`: a vector of grid points
 - `y::Vector{Float64}`: a vector of function values
+- `I::Union{Float64,Missing}`: the integral of the interpolation
 """
 struct LinearInterpolator <: Interpolator
     x::Vector{Float64}
@@ -27,7 +26,7 @@ LinearInterpolator(x, y) = LinearInterpolator(x, y, missing)
 
 function interpolate(f::LinearInterpolator, x0)
     """Evaluate the linear interpolator at a point."""
-    (x0 < f.x[1] || x0 > f.x[end]) && error("Value is outside function support")
+    (x0 < f.x[1] || x0 > f.x[end]) && throw(DomainError(x0, "Value is outside interpolation support $((f.x[1], f.x[end]))"))
     for i in 1:nsteps(f)
         if x0 >= f.x[i] && x0 < f.x[i+1]
             return (f.y[i+1] * (x0 - f.x[i]) + f.y[i] * (f.x[i+1] - x0)) / (f.x[i+1] - f.x[i])
@@ -64,69 +63,3 @@ function rejection_sample(f::LinearInterpolator, n::Int)
 end
 
 rejection_sample(f::LinearInterpolator) = rejection_sample(f, 1)
-
-
-"""
-    DiscreteLinearInterpolator
-
-A discrete linear interpolater between values `y` evaluated at gridpoints `x`.
-
-# Arguments
-- `x::Vector{Float64}`: a vector of gridpoints
-- `y::Vector{Float64}`: a vector of function values
-"""
-struct DiscreteLinearInterpolator <: Interpolator
-    x::Vector{Float64}
-    y::Vector{Float64}
-    I::Union{Float64,Missing}
-end
-
-DiscreteLinearInterpolator(x, y) = DiscreteLinearInterpolator(x, y, missing)
-
-function interpolate(f::DiscreteLinearInterpolator, x0::Int64)
-    """
-        interpolate(f::DiscreteLinearInterpolator, x0)
-    
-    Evaluate the linear interpolation at a point `x0 ∈ [x[1], x[N]]`.
-    """
-    (x0 < f.x[1] || x0 > f.x[end]) && error("Value is outside function support")
-    ndim = size(f.y)[2]
-    y0 = zeros(ndim)
-    for k in 1:ndim
-        for i in 1:nsteps(f)
-            if x0 >= f.x[i] && x0 < f.x[i+1]
-                y0[k] = (f.y[i+1, k] * (x0 - f.x[i]) + f.y[i, k] * (f.x[i+1] - x0)) / (f.x[i+1] - f.x[i])
-                break
-            end
-            y0[k] = f.y[end, k]
-        end
-    end
-    return y0
-end
-
-function interpolate(f::DiscreteLinearInterpolator, xs)
-    ndim = size(f.y)[2]
-    nobs = length(xs)
-    y0 = zeros(nobs, ndim)
-    for t in 1:nobs
-        x0 = xs[t]
-        (x0 < f.x[1] || x0 > f.x[end]) && error("Value $x0 is outside function support")
-        for k in 1:ndim
-            for i in 1:nsteps(f)
-                if x0 >= f.x[i] && x0 < f.x[i+1]
-                    y0[t, k] = (f.y[i+1, k] * (x0 - f.x[i]) + f.y[i, k] * (f.x[i+1] - x0)) / (f.x[i+1] - f.x[i])
-                    break
-                end
-                y0[t, k] = f.y[end, k]
-            end
-        end
-    end
-    return y0
-end
-
-(f::DiscreteLinearInterpolator)(x0) = interpolate(f, x0)
-
-function integrate(f::DiscreteLinearInterpolator, dt)
-    """Integrate (sum) the discrete interpolated function with step size `dt`."""
-    return sum(f(collect(f.x[1]:dt:f.x[end])))
-end

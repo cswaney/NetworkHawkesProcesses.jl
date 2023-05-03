@@ -1,45 +1,89 @@
+using NetworkHawkesProcesses
 using NetworkHawkesProcesses: node_counts
+using NetworkHawkesProcesses: split_extract
+using NetworkHawkesProcesses: SquaredExponentialKernel, GaussianProcess
+using NetworkHawkesProcesses: sufficient_statistics, integrated_intensity, update!
 using Test
 
 @testset "HomogeneousProcess" begin
+
     nodes = [1, 1, 2, 2]
     parentnodes = [0, 1, 0, 2]
     nnodes = 2
     @test node_counts(nodes, parentnodes, nnodes) == [1, 1]
+
+    nodes = []
+    parentnodes = []
+    nnodes = 2
+    @test node_counts(nodes, parentnodes, nnodes) == [0, 0]
+
+    nodes = [1, 1, 2, 2]
+    parentnodes = [1, 2, 1, 2]
+    nnodes = 2
+    @test node_counts(nodes, parentnodes, nnodes) == [0, 0]
+
 end
 
-# @testset begin "HomogeneousProcess"
+@testset "LogGaussianCoxProcess" begin
+    
+    data = ([], [], 1.)
+    parents = ([], [])
+    @test split_extract(data, parents, 1) == [([], [], 1.)]
+    @test split_extract(data, parents, 2) == [([], [], 1.), ([], [], 1.)]
+    
+    data = ([0.1, 0.2, 0.3, 0.4], [1, 1, 2, 2], 1.0)
+    parents = ([], [0, 1, 0, 2])
+    @test split_extract(data, parents, 2) == [([.1], [1], 1.), ([.3], [2], 1.)]
+    
+    data = ([0.1, 0.2, 0.3, 0.4], [1, 1, 2, 2], 1.0)
+    parents = ([], [1, 1, 2, 2])
+    @test split_extract(data, parents, 2) == [([], [], 1.), ([], [], 1.)]
 
-#     process = HomogeneousProcess(1.0)
-#     data = [
-#         ([1.0, 5.0, 10.0], 10.0),
-#         ([5.0], 5.0)
-#     ]
-#     @test sufficient_statistics(process, data) == [(3, 10.0), (1, 5.0)]
 
-#     data = [([], 0.0)]
-#     @test sufficient_statistics(process, data) == (0, 0.0)
+    kernel = SquaredExponentialKernel(1.0, 1.0)
+    gp = GaussianProcess(kernel)
+    x = collect(0.0:0.1:1.0)
+    y = rand(gp, x)
+    λ = [exp.(y)]
+    process = LogGaussianCoxProcess(x, λ, kernel, 0.0)
+    @test ndims(process) == 1
+    @test length(process) == 1.0
 
-#     data = [([], 10.0)]
-#     @test sufficient_statistics(process, data) == (0, 10.0)
+    ys = [rand(gp, x), rand(gp, x)]
+    λ = [exp.(y) for y in ys]
+    process = LogGaussianCoxProcess(x, λ, kernel, 0.0)
+    @test ndims(process) == 2
+    @test length(process) == 1.0
 
-#     data = [([0.0], 10.0)]
-#     @test sufficient_statistics(process, data) == (1, 10.0)
+end
 
-#     data = [([1.0], 0.0)] # error
-#     @test sufficient_statistics(process, data) == ?
-# end
+@testset "DiscreteHomogeneousProcess" begin
+    
+    @test_throws DomainError DiscreteHomogeneousProcess([1.0, -1.0])
+    @test_throws DomainError DiscreteHomogeneousProcess(ones(2), 0.0, 1.0, ones(2), ones(2), 1.0)
+    @test_throws DomainError DiscreteHomogeneousProcess(ones(2), 1.0, 0.0, ones(2), ones(2), 1.0)
+    @test_throws DomainError DiscreteHomogeneousProcess(ones(2), 1.0, 1.0, [0.0, 1.0], ones(2), 1.0)
+    @test_throws DomainError DiscreteHomogeneousProcess(ones(2), 1.0, 1.0, ones(2), [1.0, 0.0], 1.0)
+    @test_throws DomainError DiscreteHomogeneousProcess(ones(2), 0.0)
 
-# @testset begin "MultivariateHomogeneousProcess"
+    process = DiscreteHomogeneousProcess(ones(2), 0.5)
+    @test intensity(process, 0.0:0.1:1.0) == 0.5 * ones(11, 2)
+    @test intensity(process, 1, 0.0) == intensity(process, 2, 0.0) == 0.5
+    @test_throws DomainError intensity(process, 0, 0.0)
+    @test_throws DomainError intensity(process, 3, 0.0)
+    @test_throws DomainError intensity(process, 1, -1.0)
+    @test_throws DomainError intensity(process, -0.1:0.1:1.0)
 
-# data = ([0.008611226104070502, 0.11482329640222821, 0.18957278421725554, 0.22311355184680803, 0.4649685500267693, 0.6349894967246984, 0.7305679973656837], Int64[2, 1, 1, 2, 2, 1, 2], 1.0)
+    data = [0 0 0 1 0 1 0 0 0 1; 2 0 0 0 0 0 0 0 0 0]
+    @test sufficient_statistics(process, data) == ([3, 2], 10)
 
-# @test sufficient_statistics(process, data) == ([3, 4], 1.0)
+    @test integrated_intensity(process, 1.0) == [0.5, 0.5]
+    @test integrated_intensity(process, 2.0) == [1.0, 1.0]
+    @test_throws DomainError integrated_intensity(process, -1.0)
+    @test_throws DomainError integrated_intensity(process, 0, 1.0)
+    @test_throws DomainError integrated_intensity(process, 3, 1.0)
+    @test_throws DomainError integrated_intensity(process, 1, -1.0)
 
-# end
+    @test_throws ArgumentError update!(process, zeros(2, 10), zeros(2, 10, 1))
+end
 
-# @testset "LogGaussianCoxProcess"
-
-#     # loglikelihood
-
-# end

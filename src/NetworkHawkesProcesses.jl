@@ -12,6 +12,7 @@ import Distributions.params
 import Distributions.params!
 using Statistics
 using LinearAlgebra
+using PDMats
 using Optim
 using DSP
 using Distributions

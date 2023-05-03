@@ -28,6 +28,12 @@ mutable struct HomogeneousProcess <: Baseline
     λ
     α0
     β0
+    function HomogeneousProcess(λ, α0, β0)
+        any(λ .< 0) && throw(DomainError(λ, "HomogeneousProcess: intensity parameter λ must be non-negative"))
+        α0 > 0 || throw(DomainError(α0, "HomogeneousProcess: shape parameter α0 must be positive"))
+        β0 > 0 || throw(DomainError(β0, "HomogeneousProcess: rate parameter β0 must be positive"))
+        return new(λ, α0, β0)
+    end
 end
 
 HomogeneousProcess(λ) = HomogeneousProcess(λ, 1.0, 1.0)
@@ -91,19 +97,23 @@ end
 
 function integrated_intensity(process::HomogeneousProcess, duration)
     """Calculate the integral of the intensity."""
+    duration < 0 && throw(DomainError("duration must be non-negative"))
     return process.λ .* duration
 end
 
 function integrated_intensity(process::HomogeneousProcess, node, duration)
     """Calculate the integral of the intensity."""
+    duration < 0 && throw(DomainError("duration must be non-negative"))
     return process.λ[node] .* duration
 end
 
 function intensity(process::HomogeneousProcess, time::Float64)
+    time < 0 && throw(DomainError("time must be non-negative"))
     return process.λ
 end
 
 function intensity(process::HomogeneousProcess, node::Int64, time::Float64)
+    time < 0 && throw(DomainError("time must be non-negative"))
     return process.λ[node]
 end
 
@@ -130,36 +140,31 @@ For an arbitrary set of gridpoints, `x[1], ..., x[N]`, a corresponding sample of
 The process is sampled by interpolating between intensity values `λ[1], ..., λ[N]`.
 
 # Arguments
-- `x::Vector{Float64}`: a strictly increasing vectors of sampling grid points.
+- `x::Vector{Float64}`: a strictly increasing vectors of sampling grid points starting from x[1] = 0.0.
 - `λ::Vector{Vector{Float64}}`: a list of non-negative intensity vectors such that `λ[k][i] = λ[k]([x[i])`.
-- `Σ::Matrix{Float64}`: a positive-definite variance matrix.
+- `Σ::PDMat{Float64}`: a positive-definite variance matrix.
 - `m::Vector{Float64}`: intensity offsets equal to `log(λ0)` of homogeneous processes.
 """
 struct LogGaussianCoxProcess <: Baseline
     x::Vector{Float64}
     λ::Vector{Vector{Float64}}
-    Σ::Matrix{Float64}
+    Σ::PDMat{Float64}
     m::Float64
+    function LogGaussianCoxProcess(x, λ, Σ, m)
+        x[1] == 0.0 || throw(DomainError(x, "Grid points x must start at 0."))
+        return new(x, λ, PDMat(Σ), m)
+    end
 end
 
-function LogGaussianCoxProcess(x, λ, K::Function, m)
-    """Construct a LGCP process from a kernel function `K`."""
-    x[1] == 0.0 || error("Grid points must start at 0.")
-    return LogGaussianCoxProcess(x, λ, K(x), m)
-end
+LogGaussianCoxProcess(x, λ, K::Kernel, m) = LogGaussianCoxProcess(x, λ, K(x), m)
 
 function LogGaussianCoxProcess(gp::GaussianProcess, m, T, n, k)
-    x = collect(range(0.0, length=n+1, stop=T))
+    """Construct a LGCP with random intensity given a Gaussian process."""
+    x = range(0.0, length=n+1, stop=T)
     Σ = cov(gp, x)
     ys = [rand(gp, x; sigma=Σ) for _ in 1:k]
     λ = [exp.(m .+ y) for y in ys]
     return LogGaussianCoxProcess(x, λ, Σ, m)
-end
-
-function LogGaussianCoxProcess(nnodes, duration)
-    kernel = NetworkHawkesProcesses.SquaredExponentialKernel(1.0, 1.0)
-    gp = NetworkHawkesProcesses.GaussianProcess(kernel)
-    return NetworkHawkesProcesses.LogGaussianCoxProcess(gp, 0.0, duration, 10, nnodes)
 end
 
 ndims(process::LogGaussianCoxProcess) = length(process.λ)
@@ -357,6 +362,15 @@ mutable struct DiscreteHomogeneousProcess <: DiscreteBaseline
     αv::Vector{Float64}
     βv::Vector{Float64}
     dt::Float64
+    function DiscreteHomogeneousProcess(λ, α0, β0, αv, βv, dt)
+        any(λ .< 0) && throw(DomainError(λ, "DiscreteHomogeneousProcess: intensity parameter λ must be non-negative"))
+        α0 > 0 || throw(DomainError(α0, "DiscreteHomogeneousProcess: shape parameter α0 must be positive"))
+        β0 > 0 || throw(DomainError(β0, "DiscreteHomogeneousProcess: rate parameter β0 must be positive"))
+        all(αv .> 0) || throw(DomainError(αv, "DiscreteHomogeneousProcess: shape parameter αv must be positive"))
+        all(βv .> 0) || throw(DomainError(βv, "DiscreteHomogeneousProcess: rate parameter βv must be positive"))
+        dt > 0.0 || throw(DomainError(dt, "DiscreteHomogeneousProcess: time step dt must be non-negative"))
+        return new(λ, α0, β0, αv, βv, dt)
+    end
 end
 
 function DiscreteHomogeneousProcess(λ, dt=1.0)
@@ -368,9 +382,7 @@ function DiscreteHomogeneousProcess(λ, dt=1.0)
 end
 
 ndims(p::DiscreteHomogeneousProcess) = length(p.λ)
-
 params(p::DiscreteHomogeneousProcess) = copy(p.λ)
-
 nparams(p::DiscreteHomogeneousProcess) = length(p.λ)
 
 function params!(p::DiscreteHomogeneousProcess, x)
@@ -387,9 +399,16 @@ function rand(p::DiscreteHomogeneousProcess, T::Int64)
     return vcat(transpose(rand.(Poisson.(p.λ .* p.dt), T))...)
 end
 
-intensity(p::DiscreteHomogeneousProcess, ts) = Matrix(transpose(repeat(p.λ, 1, length(ts)))) .* p.dt
+function intensity(p::DiscreteHomogeneousProcess, ts)
+    any(ts .< 0.0) && throw(DomainError(ts, "intensity: times ts must be non-negative"))
+    Matrix(transpose(repeat(p.λ, 1, length(ts)))) .* p.dt
+end
 
-intensity(p::DiscreteHomogeneousProcess, node, time) = p.λ[node] .* p.dt
+function intensity(p::DiscreteHomogeneousProcess, node, time)
+    (node < 1 || node > ndims(p)) && throw(DomainError(node, "intensity: node must be between one and ndims"))
+    time < 0.0 && throw(DomainError(time, "intensity: time must be non-negative"))
+    p.λ[node] .* p.dt
+end
 
 function resample!(p::DiscreteHomogeneousProcess, parents)
     Mn, T = sufficient_statistics(p, parents[:, :, 1])
@@ -400,18 +419,21 @@ function resample!(p::DiscreteHomogeneousProcess, parents)
 end
 
 function sufficient_statistics(p::DiscreteHomogeneousProcess, data)
-    T, _ = size(data)
-    Mn = sum(data, dims=[1])
-    return Mn, T
+    _, T = size(data)
+    Mn = sum(data, dims=[2])
+    return vec(Mn), T
 end
 
 function integrated_intensity(process::DiscreteHomogeneousProcess, duration)
     """Calculate the integral of the intensity."""
+    duration < 0.0 && throw(DomainError(duration, "intensity: duration must be non-negative"))
     return process.λ .* process.dt .* duration
 end
 
 function integrated_intensity(process::DiscreteHomogeneousProcess, node, duration)
     """Calculate the integral of the intensity on a single node."""
+    (node < 1 || node > ndims(process)) && throw(DomainError(node, "intensity: node must be between one and ndims"))
+    duration < 0.0 && throw(DomainError(duration, "intensity: duration must be non-negative"))
     return process.λ[node] * process.dt * duration
 end
 
@@ -422,6 +444,7 @@ end
 function update!(process::DiscreteHomogeneousProcess, data, parents)
     """Perform a variational inference update. `parents` is the `T x N x (1 + NB)` variational parameter for the auxillary parent variables.
     """
+    size(data) != size(parents)[[2, 1]] && throw(ArgumentError("update!: data and parent dimensions do not conform"))
     N, T = size(data)
     process.αv = process.α0 .+ sum(parents[:, :, 1] .* transpose(data), dims=1)
     process.βv = 1 ./ process.β0 .+ T .* process.dt .* ones(N)
