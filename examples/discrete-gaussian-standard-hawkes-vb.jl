@@ -30,7 +30,7 @@ data = NetworkHawkesProcesses.rand(process, duration);
 println("Generated $(sum(data)) events")
 
 # estimate parameters via (mean-field) variational Bayes
-res = vb!(process, data; max_steps=10, verbose=true);
+res = vb!(process, data; max_steps=100, verbose=true);
 qλ = mean.(NetworkHawkesProcesses.q(process.baseline))
 qW = mean.(NetworkHawkesProcesses.q(process.weights))
 qθ = mean.(NetworkHawkesProcesses.q(process.impulses))
