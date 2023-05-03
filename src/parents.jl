@@ -133,32 +133,32 @@ function parent_counts(parents::Array{Int64,3}, ndims, nbasis)
     return counts
 end
 
-function update_parents(p::DiscreteHawkesProcess, convolved::Array{Float64,3}, α, β, κ0, ν0, κ1, ν1, γ, ρ)
-    """Perform variational inference update on auxillary parent variables ("local context"). The required variational parameters are α, β, κ, ν, and γ."""
+function update_parents(process::DiscreteHawkesProcess, convolved::Array{Float64,3})
     T, N, B = size(convolved)
-    is_mixture = !isa(p.network, DenseNetwork)
     u = zeros(T, N, 1 + N * B)
     if Threads.nthreads() > 1
-        @debug "using multi-threaded parent updater"
+        @debug "using multi-threaded parent updates"
         Threads.@threads for tidx = 1:T
-            u[tidx, cidx, 1] = update_parent_kernel(0, cidx, nothing, α, β, κ0, ν0, κ1, ν1, γ, ρ, is_mixture)
-            for pidx = 1:N
-                start = 1 + (pidx - 1) * B + 1
-                stop = start + B - 1
-                shat = convolved[tidx, pidx, :]
-                u[tidx, cidx, start:stop] = update_parent_kernel(pidx, cidx, shat, α, β, κ0, ν0, κ1, ν1, γ, ρ, is_mixture)
+            for cidx = 1:N
+                u[tidx, cidx, 1] = update_parent(process, 0, cidx, nothing)
+                for pidx = 1:N
+                    start = 1 + (pidx - 1) * B + 1
+                    stop = start + B - 1
+                    shat = convolved[tidx, pidx, :]
+                    u[tidx, cidx, start:stop] = update_parent(process, pidx, cidx, shat)
+                end
             end
         end
     else
         for tidx = 1:T
             for cidx = 1:N
-                u[tidx, cidx, 1] = update_parent_kernel(0, cidx, nothing, α, β, κ0, ν0, κ1, ν1, γ, ρ, is_mixture)
+                u[tidx, cidx, 1] = update_parent(process, 0, cidx, nothing)
                 for pidx = 1:N
                     start = 1 + (pidx - 1) * B + 1
                     stop = start + B - 1
                     shat = convolved[tidx, pidx, :]
-                    u[tidx, cidx, start:stop] = update_parent_kernel(pidx, cidx, shat, α, β, κ0, ν0, κ1, ν1, γ, ρ, is_mixture)
-                end
+                    u[tidx, cidx, start:stop] = update_parent(process, pidx, cidx, shat)
+                end 
             end
         end
     end
@@ -166,27 +166,12 @@ function update_parents(p::DiscreteHawkesProcess, convolved::Array{Float64,3}, �
     return u ./ Z
 end
 
-function update_parent(updater, pidx, cidx, shat, α, β, κ0, ν0, κ1, ν1, γ, ρ, is_mixture=false)
-    # 
+function update_parent(process::DiscreteHawkesProcess, pidx, cidx, shat)
     if pidx == 0
-        # Elogλ0 = digamma(α[cidx]) - log(β[cidx])
-        # return exp(Elogλ0)
-        return expectation(updater.baseline, cidx)
-    elseif is_mixture
-        # Elogθ = digamma.(γ[pidx, cidx, :]) .- digamma(sum(γ[pidx, cidx, :]))
-        # ElogW0 = digamma(κ0[pidx, cidx]) - log(ν0[pidx, cidx])
-        # ElogW1 = digamma(κ1[pidx, cidx]) - log(ν1[pidx, cidx])
-        # ElogW = (1 - ρ[pidx, cidx]) * ElogW0 + ρ[pidx, cidx] * ElogW1
-        # return shat .* exp.(Elogθ .+ ElogW)
-        Elogθ = expectation(updater.impulses, pidx, cidx)
-        ElogW = expectation(updater.weights, pidx, cidx, false) # κ0, ν0
-        return shat .* exp.(Elogθ .+ ElogW)
+        return exp(variational_log_expectation(process.baseline, cidx))
     else
-        # Elogθ = digamma.(γ[pidx, cidx, :]) .- digamma(sum(γ[pidx, cidx, :]))
-        # ElogW = digamma(κ1[pidx, cidx]) - log(ν1[pidx, cidx])
-        # return shat .* exp.(Elogθ .+ ElogW)
-        Elogθ = expectation(update.impulses, pidx, cidx)
-        ElogW = expectation(updater.weights, pidx, cidx, true) # κ1, ν1
+        Elogθ = variational_log_expectation(process.impulses, pidx, cidx)
+        ElogW = variational_log_expectation(process.weights, pidx, cidx) # TODO: SparseWeightModel requires the variational parameter for the adjacency matrix. Consider creating a new AdjacencyMatrix struct to hold ρv? Or, create a SpikeAndSlab composite weight model that holds ρv.
         return shat .* exp.(Elogθ .+ ElogW)
     end
 end
