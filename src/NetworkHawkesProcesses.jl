@@ -16,6 +16,7 @@ using PDMats
 using Optim
 using DSP
 using Distributions
+using SpecialFunctions
 
 abstract type HawkesProcess end
 
