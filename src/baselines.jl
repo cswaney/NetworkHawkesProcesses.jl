@@ -393,7 +393,7 @@ function params!(p::DiscreteHomogeneousProcess, x)
     end
 end
 
-variational_params(p::DiscreteHomogeneousProcess) = [copy(p.αv); copy(p.βν)]
+variational_params(p::DiscreteHomogeneousProcess) = [copy(p.αv); copy(p.βv)]
 
 function rand(p::DiscreteHomogeneousProcess, T::Int64)
     return vcat(transpose(rand.(Poisson.(p.λ .* p.dt), T))...)
@@ -446,11 +446,18 @@ function update!(process::DiscreteHomogeneousProcess, data, parents)
     """
     size(data) != size(parents)[[2, 1]] && throw(ArgumentError("update!: data and parent dimensions do not conform"))
     N, T = size(data)
-    process.αv = process.α0 .+ sum(parents[:, :, 1] .* transpose(data), dims=1)
+    process.αv = process.α0 .+ vec(sum(parents[:, :, 1] .* transpose(data), dims=1))
     process.βv = 1 ./ process.β0 .+ T .* process.dt .* ones(N)
     return vec(process.αv), copy(process.βv)
 end
 
+function variational_log_expectation(process::DiscreteHomogeneousProcess, cidx)
+    return digamma(process.αv[cidx]) - log(process.βv[cidx])
+end
+
+function q(process::DiscreteHomogeneousProcess)
+    return [Gamma(α, 1 / β) for (α, β) in zip(process.αv, process.βv)]
+end
 
 """
     DiscreteLogGaussianCoxProcess
