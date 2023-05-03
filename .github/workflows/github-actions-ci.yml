@@ -26,7 +26,7 @@ jobs:
           - x64
         include:
           - os: macOS-latest
-            version: '1.8.0'
+            version: '1.8'
             arch: x86
     steps:
       - uses: actions/checkout@v3
