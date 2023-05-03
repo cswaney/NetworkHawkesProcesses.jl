@@ -48,9 +48,11 @@ mutable struct DenseWeightModel <: Weights
     W
     κ
     ν
+    κv
+    νv
 end
 
-DenseWeightModel(W) = DenseWeightModel(W, 1.0, 1.0)
+DenseWeightModel(W) = DenseWeightModel(W, 1.0, 1.0, ones(size(W)), ones(size(W)))
 
 nparams(model::DenseWeightModel) = prod(size(model.W))
 
@@ -65,10 +67,10 @@ function logprior(model::DenseWeightModel)
     return sum(log.(pdf.(Gamma(model.κ, 1 / model.ν), model.W)))
 end
 
-function update(p::DenseWeightModel, data, parents)
+function update!(model::DenseWeightModel, data, parents)
     """Perform a variational inference update. `parents` is the `T x N x (1 + NB)` variational parameter for the auxillary parent variables."""
     N, T = size(data)
-    _, _, B = size(p.θ)
+    B = div(size(parents)[3] - 1, N)
     κ = zeros(N, N)
     ν = zeros(N, N)
     for pidx = 1:N
@@ -83,7 +85,19 @@ function update(p::DenseWeightModel, data, parents)
             end
         end
     end
-    return p.κ .+ κ, p.ν .+ ν
+    model.κv = model.κ .+ κ
+    model.νv = model.ν .+ ν
+    return copy(model.κv), copy(model.νv)
+end
+
+variational_params(model::DenseWeightModel) = [vec(model.κv); vec(model.νv)]
+
+function variational_log_expectation(model::DenseWeightModel, pidx, cidx)
+    return digamma(model.κv[pidx, cidx]) - log(model.νv[pidx, cidx])
+end
+
+function q(model::DenseWeightModel)
+    reshape([Gamma(κ, 1 / ν) for (κ, ν) in zip(vec(model.κv), vec(model.νv))], size(model.W))
 end
 
 
@@ -114,7 +128,7 @@ end
 
 nparams(model::SparseWeightModel) = prod(size(model.W))
 
-variational_params(model::Weights) = [vec(model.κv0); vec(model.νv0); vec(model.κv1); vec(model.νv1)]
+variational_params(model::SparseWeightModel) = [vec(model.κv0); vec(model.νv0); vec(model.κv1); vec(model.νv1)]
 
 function resample!(model::SparseWeightModel, data, parents)
     Mn, Mnm = sufficient_statistics(model, data, parents)
@@ -150,4 +164,10 @@ function update!(model::SparseWeightModel, data, parents)
     model.κv1 = model.κ1 .+ Mnm1
     model.νv1 = model.ν1 .+ Mn1
     return copy(model.κv0), copy(model.νv0), copy(model.κv1), copy(model.νv1)
+end
+
+function variational_log_expectation(model::SparseWeightModel, pidx, cidx)
+    ElogW0 = digamma(model.κ0v[pidx, cidx]) - log(model.ν0v[pidx, cidx])
+    ElogW1 = digamma(model.κ1v[pidx, cidx]) - log(model.ν1v[pidx, cidx])
+    return (1 - ρ[pidx, cidx]) * ElogW0 + ρ[pidx, cidx] * ElogW1
 end
