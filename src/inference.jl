@@ -77,21 +77,21 @@ A container to store the results of variational inference.
 """
 mutable struct VariationalInference
     trace
-    steps
+    step
     elapsed
     status
 end
 
 function VariationalInference(process::HawkesProcess)
     trace = Vector{typeof(params(process))}()
-    steps = 0
+    step = 0
     elapsed = 0.0
     status = "incomplete"
-    VariationalInference(trace, steps, elapsed, status)
+    VariationalInference(trace, step, elapsed, status)
 end
 
-function show(io::IO, res::VariationalInference)
-    print(io, "\n* Status: $(res.status)\n    steps: $(res.steps)\n    elapsed: $(res.elapsed)")
+function Base.show(io::IO, res::VariationalInference)
+    print(io, "\n* Status: $(res.status)\n    step: $(res.step)\n    elapsed: $(res.elapsed)")
 end
 
 function convergence_criteria(res::VariationalInference)
@@ -150,28 +150,33 @@ The variational distribution takes the form q(λ0)q(θ)q(W)q(A)q(ω), where:
 # Return
 - `res::`: a struct containing results of the inference routine
 """
-function vb!(process::HawkesProcess, data; max_steps::Int64=1_000, Δx_thresh=1e-6, Δq_thresh=1e-2)
+function vb!(process::HawkesProcess, data; max_steps::Int64=1_000, Δx_thresh=1e-6, Δq_thresh=1e-2, verbose=false)
     # TODO set initial variational parameters guess
-    convolved = PointProcesses.convolve(process, data)
-    res = VariationalInferenceResult(process)
+    convolved = convolve(process, data)
+    res = VariationalInference(process)
     converged = false
-    for step = 1:max_steps
+    while res.step < max_steps
         update!(process, data, convolved)
-        push!(res, variational_params(process))
-        if step > 1
-            Δx_max, Δq_max = convergence_criteria(res)
-            println(" > iter: $i/$max_steps, Δx_max=$(Δx_max), Δq_max=$(Δq_max)")
-            if Δx_max < Δx_thresh
-                converged = "Δx_max"
-            elseif Δq_max < Δq_thresh
-                converged = "Δq_max"
-            end
-            if converged != false
-                println(" ** convergence criteria $converged < ϵ reached **")
-                break
-            end
+        push!(res.trace, variational_params(process))
+        res.step += 1
+        if res.step > 1
+            # Δx_max, Δq_max = convergence_criteria(res)
+            # if verbose
+            #     println(" > iter: $i/$max_steps, Δx_max=$(Δx_max), Δq_max=$(Δq_max)")
+            # end
+            # if Δx_max < Δx_thresh
+            #     converged = "Δx_max"
+            # elseif Δq_max < Δq_thresh
+            #     converged = "Δq_max"
+            # end
+            # if converged != false
+            #     println(" ** convergence criteria $converged < ϵ reached **")
+            #     res.status = "converged"
+            #     return res
+            # end
         end
     end
+    println(" ** maximum steps reached **")
     return res
 end
 
