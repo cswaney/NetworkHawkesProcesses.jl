@@ -1,3 +1,5 @@
+import SpecialFunctions.loggamma
+
 abstract type DiscreteHawkesProcess <: HawkesProcess end
 
 ndims(process::DiscreteHawkesProcess) = ndims(process.baseline)
@@ -366,9 +368,9 @@ end
 
 function update!(process::DiscreteStandardHawkesProcess, data, convolved)
     parents = update_parents(process, convolved)
-    update!(process.baseline, parents)
-    update!(process.weights, parents)
-    update!(process.impulses, parents)
+    update!(process.baseline, data, parents)
+    update!(process.weights, data, parents)
+    update!(process.impulses, data, parents)
     return variational_params(process)
 end
 
@@ -479,14 +481,24 @@ end
 
 function update_adjacency_matrix(p::DiscreteNetworkHawkesProcess)
     """Perform a variational inference update. For ρ ~ Beta(α, β), we have 1 - ρ ~ Beta(β, α), which implies that E[log (1 - ρ)] = digamma(β) - digamma(β + α)."""
-    logodds = (digamma.(αρ) .- digamma.(αρ .+ βρ)) .- (digamma.(βρ) .- digamma.(αρ .+ βρ))
-    logodds .+= p.κ1 * log(p.ν1) - loggamma(p.κ1)
-    logodds .+= loggamma.(κ1) .- κ1 .* log(ν1)
-    logodds .+= p.κ0 * log(p.ν0) - loggamma(p.κ0)
-    logodds .+= loggamma.(κ0) .- κ0 .* log(ν0)
+    logodds = variational_log_expectation(p.network)
+    logodds .+= p.weights.κ1 * log(p.weights.ν1) - loggamma(p.weights.κ1)
+    logodds .+= loggamma.(p.weights.κv1) .- p.weights.κv1 .* log(p.weights.νv1)
+    logodds .-= p.weights.κ0 * log(p.weights.ν0) - loggamma(p.weights.κ0)
+    logodds .-= loggamma.(p.weights.κv0) .- p.weights.κv0 .* log(p.weights.νv0)
     logits = exp.(logodds)
     ρ = logits ./ (logits .+ 1)
     return ρ
+end
+
+function update!(process::DiscreteNetworkHawkesProcess, data, convolved)
+    parents = update_parents(process, convolved)
+    update!(process.baseline, parents)
+    update!(process.weights, parents)
+    update!(process.impulses, parents)
+    update_adjacency_matrix(process)
+    update_network!(process.network, process.ρv) # or process.weights.ρv? We are assuming a spike-and-slab type model—should we enforce that?
+    return variational_params(process)
 end
 
 function impulse_response(process::DiscreteNetworkHawkesProcess, parentnode, childnode, lag)

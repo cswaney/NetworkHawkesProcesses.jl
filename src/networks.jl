@@ -78,16 +78,19 @@ function resample_connection_probability!(network::BernoulliNetworkModel, data)
 end
 
 function update!(network::BernoulliNetworkModel, ρ)
-    α, β = update_link_probabilities(network, ρ)
+    α, β = update_link_probabilities!(network, ρ)
     return α, β
 end
 
-function update_link_probabilities(network::BernoulliNetworkModel, ρ)
-    network.αv = net.α + sum(ρ)
-    network.βv = net.β + sum(1 .- ρ)
+function update_link_probabilities!(network::BernoulliNetworkModel, ρ)
+    network.αv = network.α + sum(ρ)
+    network.βv = network.β + sum(1 .- ρ)
     return copy(network.αv), copy(network.βv)
 end
 
+function variational_log_expectation(network::BernoulliNetworkModel)
+    return (digamma.(network.αv) .- digamma.(network.αv .+ network.βv)) .- (digamma.(network.βv) .- digamma.(network.αv .+ network.βv))
+end
 
 """StochasticBlockNetworkModel"""
 
