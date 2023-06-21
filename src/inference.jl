@@ -155,6 +155,7 @@ function vb!(process::HawkesProcess, data; max_steps::Int64=1_000, Δx_thresh=1e
     convolved = convolve(process, data)
     res = VariationalInference(process)
     converged = false
+    converged_reason = nothing
     while res.step < max_steps
         update!(process, data, convolved)
         push!(res.trace, variational_params(process))
@@ -165,11 +166,13 @@ function vb!(process::HawkesProcess, data; max_steps::Int64=1_000, Δx_thresh=1e
             #     println(" > iter: $i/$max_steps, Δx_max=$(Δx_max), Δq_max=$(Δq_max)")
             # end
             # if Δx_max < Δx_thresh
-            #     converged = "Δx_max"
+            #     converged = true
+            #     converged_reason = "Δx_max"
             # elseif Δq_max < Δq_thresh
-            #     converged = "Δq_max"
+            #     converged = true
+            #     converged_reason = "Δq_max"
             # end
-            # if converged != false
+            # if converged
             #     println(" ** convergence criteria $converged < ϵ reached **")
             #     res.status = "converged"
             #     return res
