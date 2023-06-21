@@ -139,8 +139,7 @@ The variational distribution takes the form q(λ0)q(θ)q(W)q(A)q(ω), where:
 - q(ω) = Mult(u)
 
 # Arguments
--
--
+- `data::Matrix{T<:Integer}`: `T x N` event count data.
 
 # Keyword Arguments
 - `max_steps::Int64`: maximum number of updates to perform.
@@ -150,7 +149,7 @@ The variational distribution takes the form q(λ0)q(θ)q(W)q(A)q(ω), where:
 # Return
 - `res::`: a struct containing results of the inference routine
 """
-function vb!(process::HawkesProcess, data; max_steps::Int64=1_000, Δx_thresh=1e-6, Δq_thresh=1e-2, verbose=false)
+function vb!(process::HawkesProcess, data::Matrix{<:Unsigned}; max_steps::Int64=1_000, Δx_thresh=1e-6, Δq_thresh=1e-2, verbose=false)
     # TODO set initial variational parameters guess
     convolved = convolve(process, data)
     res = VariationalInference(process)
