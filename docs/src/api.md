@@ -86,7 +86,7 @@ DenseWeightModel
 ```
 
 ```@docs
-SparseWeightModel
+SpikeAndSlabWeightModel
 ```
 
 
