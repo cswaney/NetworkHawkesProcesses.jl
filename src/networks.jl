@@ -46,8 +46,8 @@ mutable struct BernoulliNetworkModel <: Network
     ρ
     α
     β
-    αv
-    βv
+    αv::Float64
+    βv::Float64
     nnodes
 end
 
@@ -56,6 +56,8 @@ BernoulliNetworkModel(ρ, nnodes) = BernoulliNetworkModel(ρ, 1.0, 1.0, 1.0, 1.0
 size(network::BernoulliNetworkModel) = network.nnodes
 
 params(network::BernoulliNetworkModel) = [network.ρ]
+
+variational_params(network::BernoulliNetworkModel) = [network.αv, network.βv]
 
 function rand(network::BernoulliNetworkModel)
     nnodes = size(network)
