@@ -155,8 +155,7 @@ The variational distribution takes the form q(λ0)q(θ)q(W)q(A)q(ω), where:
 # Return
 - `res::`: a struct containing results of the inference routine
 """
-function vb!(process::HawkesProcess, data::Matrix{<:Integer}; max_steps::Int64=1_000, Δx_thresh=1e-6, Δq_thresh=1e-2, verbose=false)
-    # TODO set initial variational parameters guess
+function vb!(process::DiscreteHawkesProcess, data::Matrix{<:Integer}; max_steps::Int64=1_000, Δx_thresh=1e-6, Δq_thresh=1e-2, verbose=false)
     convolved = convolve(process, data)
     res = VariationalInference(process)
     converged = false
