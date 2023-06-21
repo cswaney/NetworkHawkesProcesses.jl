@@ -4,6 +4,7 @@ using NetworkHawkesProcesses
 using NetworkHawkesProcesses: params, params!
 using Statistics
 using Random
+using Distributions
 
 # set random seed
 Random.seed!(0);
@@ -18,10 +19,10 @@ plink = 0.5;
 
 # create a random process
 baseline = DiscreteHomogeneousProcess(rand(nnodes), dt);
-weights = DenseWeightModel(rand(nnodes, nnodes));
+weights = SpikeAndSlabWeightModel(rand(nnodes, nnodes));
 impulses = DiscreteGaussianImpulseResponse(ones(nnodes, nnodes, nbasis) ./ nbasis, nlags, dt);
-network = NetworkHawkesProcesses.BernoulliNetworkModel(plink, nnodes);
-links = NetworkHawkesProcesses.rand(network);
+network = BernoulliNetworkModel(plink, nnodes);
+links = rand(network);
 process = DiscreteNetworkHawkesProcess(baseline, impulses, weights, links, network, dt);
 println("Process is stable? $(isstable(process))")
 
@@ -35,8 +36,10 @@ println("Generated $(sum(data)) events")
 # estimate parameters via (mean-field) variational Bayes
 res = vb!(process, data; max_steps=100, verbose=true);
 qλ = mean.(NetworkHawkesProcesses.q(process.baseline))
-qW = mean.(NetworkHawkesProcesses.q(process.weights))
+qW0 = mean.(NetworkHawkesProcesses.q(process.weights, 0))
+qW1 = mean.(NetworkHawkesProcesses.q(process.weights, 1))
 qθ = mean.(NetworkHawkesProcesses.q(process.impulses))
 qθ = reshape(transpose(cat(qθ..., dims=2)), size(process.impulses.θ))
-θvb = [qλ; vec(qW .* qθ)];
+qA = Bool.(round.(mean.(Bernoulli.(process.weights.ρv))))
+θvb = [qλ; vec(qA .* qW1 .* qθ)];
 [θ θvb]
