@@ -126,6 +126,12 @@ function convergence_criteria(res::VariationalInference)
     return Δx_max, Δq_max
 end
 
+function relative_change(res::VariationalInference)
+    trace = res.trace
+    step = res.step
+    return maximum(abs.((trace[step] .- trace[step - 1]) / trace[step - 1]))
+end
+
 """
     vb!(process::DiscreteHawkesProcess, data; kwargs...)
 
@@ -149,7 +155,7 @@ The variational distribution takes the form q(λ0)q(θ)q(W)q(A)q(ω), where:
 # Return
 - `res::`: a struct containing results of the inference routine
 """
-function vb!(process::HawkesProcess, data::Matrix{<:Unsigned}; max_steps::Int64=1_000, Δx_thresh=1e-6, Δq_thresh=1e-2, verbose=false)
+function vb!(process::HawkesProcess, data::Matrix{<:Integer}; max_steps::Int64=1_000, Δx_thresh=1e-6, Δq_thresh=1e-2, verbose=false)
     # TODO set initial variational parameters guess
     convolved = convolve(process, data)
     res = VariationalInference(process)
@@ -160,22 +166,21 @@ function vb!(process::HawkesProcess, data::Matrix{<:Unsigned}; max_steps::Int64=
         push!(res.trace, variational_params(process))
         res.step += 1
         if res.step > 1
-            # Δx_max, Δq_max = convergence_criteria(res)
-            # if verbose
-            #     println(" > iter: $i/$max_steps, Δx_max=$(Δx_max), Δq_max=$(Δq_max)")
-            # end
-            # if Δx_max < Δx_thresh
-            #     converged = true
-            #     converged_reason = "Δx_max"
-            # elseif Δq_max < Δq_thresh
-            #     converged = true
-            #     converged_reason = "Δq_max"
-            # end
-            # if converged
-            #     println(" ** convergence criteria $converged < ϵ reached **")
-            #     res.status = "converged"
-            #     return res
-            # end
+            Δx_max = relative_change(res)
+            if verbose
+                println(" > iter: $(res.step)/$(max_steps), Δx_max=$(Δx_max)")
+            end
+            if Δx_max < Δx_thresh
+                converged = true
+                converged_reason = "Δx_max"
+            end
+            if converged
+                println(" ** convergence criteria $(converged_reason) < ϵ reached **")
+                res.status = "converged"
+                return res
+            end
+        else
+            println(" > iter: $(res.step)/$(max_steps), Δx_max=-")
         end
     end
     println(" ** maximum steps reached **")
