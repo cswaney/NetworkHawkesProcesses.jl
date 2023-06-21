@@ -403,14 +403,31 @@ end
 
 isstable(p::DiscreteNetworkHawkesProcess) = maximum(abs.(eigvals(p.adjacency_matrix .* p.weights.W))) < 1.0
 
+function effective_weights(process::DiscreteNetworkHawkesProcess)
+    return vec(process.adjacency_matrix .* process.weights.W .* process.impulses.θ)
+end
+
 function params(process::DiscreteNetworkHawkesProcess)
     """Return a copy of a processes' trainable parameters as a vector."""
-    ϕ = params(process.network)
-    λ0 = params(process.baseline)
-    W = params(process.weights)
-    θ = params(process.impulses)
-    A = copy(vec(process.adjacency_matrix))
-    return [ϕ; λ0; W; θ; A]
+    return [params(process.baseline); effective_weights(process)]
+end
+
+# function params(process::DiscreteNetworkHawkesProcess)
+#     """Return a copy of a processes' trainable parameters as a vector."""
+#     ϕ = params(process.network)
+#     λ0 = params(process.baseline)
+#     W = params(process.weights)
+#     θ = params(process.impulses)
+#     A = copy(vec(process.adjacency_matrix))
+#     return [ϕ; λ0; W; θ; A]
+# end
+
+function variational_params(process::DiscreteNetworkHawkesProcess)
+    θ_baseline = variational_params(process.baseline)
+    θ_impulses = variational_params(process.impulses)
+    θ_weights = variational_params(process.weights)
+    θ_network = variational_params(process.network)
+    return [θ_baseline; θ_impulses; θ_weights; θ_network]
 end
 
 function resample!(process::DiscreteNetworkHawkesProcess, data, convolved)
@@ -482,22 +499,22 @@ end
 function update_adjacency_matrix(p::DiscreteNetworkHawkesProcess)
     """Perform a variational inference update. For ρ ~ Beta(α, β), we have 1 - ρ ~ Beta(β, α), which implies that E[log (1 - ρ)] = digamma(β) - digamma(β + α)."""
     logodds = variational_log_expectation(p.network)
-    logodds .+= p.weights.κ1 * log(p.weights.ν1) - loggamma(p.weights.κ1)
-    logodds .+= loggamma.(p.weights.κv1) .- p.weights.κv1 .* log(p.weights.νv1)
+    logodds += p.weights.κ1 * log(p.weights.ν1) - loggamma(p.weights.κ1)
+    logodds = logodds .+ loggamma.(p.weights.κv1) .- p.weights.κv1 .* log.(p.weights.νv1)
     logodds .-= p.weights.κ0 * log(p.weights.ν0) - loggamma(p.weights.κ0)
-    logodds .-= loggamma.(p.weights.κv0) .- p.weights.κv0 .* log(p.weights.νv0)
+    logodds .-= loggamma.(p.weights.κv0) .- p.weights.κv0 .* log.(p.weights.νv0)
     logits = exp.(logodds)
-    ρ = logits ./ (logits .+ 1)
-    return ρ
+    p.weights.ρv = logits ./ (logits .+ 1)
+    return copy(p.weights.ρv)
 end
 
 function update!(process::DiscreteNetworkHawkesProcess, data, convolved)
     parents = update_parents(process, convolved)
-    update!(process.baseline, parents)
-    update!(process.weights, parents)
-    update!(process.impulses, parents)
+    update!(process.baseline, data, parents)
+    update!(process.weights, data, parents)
+    update!(process.impulses, data, parents)
     update_adjacency_matrix(process)
-    update_network!(process.network, process.ρv) # or process.weights.ρv? We are assuming a spike-and-slab type model—should we enforce that?
+    update!(process.network, process.weights.ρv)
     return variational_params(process)
 end
 
