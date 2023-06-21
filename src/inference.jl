@@ -82,7 +82,7 @@ mutable struct VariationalInference
     status
 end
 
-function VariationalInference(process::HawkesProcess)
+function VariationalInference(process::DiscreteHawkesProcess)
     trace = Vector{typeof(params(process))}()
     step = 0
     elapsed = 0.0
