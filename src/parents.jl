@@ -171,7 +171,7 @@ function update_parent(process::DiscreteHawkesProcess, pidx, cidx, shat)
         return exp(variational_log_expectation(process.baseline, cidx))
     else
         Elogθ = variational_log_expectation(process.impulses, pidx, cidx)
-        ElogW = variational_log_expectation(process.weights, pidx, cidx) # TODO: SparseWeightModel requires the variational parameter for the adjacency matrix. Consider creating a new AdjacencyMatrix struct to hold ρv? Or, create a SpikeAndSlab composite weight model that holds ρv.
+        ElogW = variational_log_expectation(process.weights, pidx, cidx)
         return shat .* exp.(Elogθ .+ ElogW)
     end
 end
