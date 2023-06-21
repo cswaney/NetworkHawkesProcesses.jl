@@ -101,8 +101,8 @@ function q(model::DenseWeightModel)
 end
 
 
-"""SparseWeightModel"""
-mutable struct SparseWeightModel <: Weights
+"""SpikeAndSlabWeightModel"""
+mutable struct SpikeAndSlabWeightModel <: Weights
     W
     κ0
     ν0
@@ -112,25 +112,27 @@ mutable struct SparseWeightModel <: Weights
     νv0
     κv1
     νv1
+    ρv
 end
 
-function SparseWeightModel(W)
-    κ0 = 1.
-    ν0 = 1.
+function SpikeAndSlabWeightModel(W)
+    κ0 = 0.1
+    ν0 = 10.
     κ1 = 1.
     ν1 = 1.
-    κv0 = ones(size(W))
-    νv0 = ones(size(W))
+    κv0 = 0.1 .* ones(size(W))
+    νv0 = 10. .* ones(size(W))
     κv1 = ones(size(W))
     νv1 = ones(size(W))
-    SparseWeightModel(W, κ0, ν0, κ1, ν1, κv0, νv0, κv1, νv1)
+    ρv = 0.5 * ones(size(W))
+    SpikeAndSlabWeightModel(W, κ0, ν0, κ1, ν1, κv0, νv0, κv1, νv1, ρv)
 end
 
-nparams(model::SparseWeightModel) = prod(size(model.W))
+nparams(model::SpikeAndSlabWeightModel) = prod(size(model.W))
 
-variational_params(model::SparseWeightModel) = [vec(model.κv0); vec(model.νv0); vec(model.κv1); vec(model.νv1)]
+variational_params(model::SpikeAndSlabWeightModel) = [vec(model.κv0); vec(model.νv0); vec(model.κv1); vec(model.νv1); vec(model.ρv)]
 
-function resample!(model::SparseWeightModel, data, parents)
+function resample!(model::SpikeAndSlabWeightModel, data, parents)
     Mn, Mnm = sufficient_statistics(model, data, parents)
     κ1 = model.κ1 .+ Mnm
     ν1 = model.ν1 .+ Mn
@@ -138,36 +140,41 @@ function resample!(model::SparseWeightModel, data, parents)
     return copy(model.W)
 end
 
-function update!(model::SparseWeightModel, data, parents)
+function update!(model::SpikeAndSlabWeightModel, data, parents)
     N, T = size(data)
-    _, _, B = size(p.θ)
-    Mnm0 = zeros(N, N)
-    Mn0 = zeros(N, N)
-    Mnm1 = zeros(N, N)
-    Mn1 = zeros(N, N)
+    B = Int((size(parents, 3) - 1) / N)
+    κ = zeros(N, N)
+    ν = zeros(N, N)
     for pidx = 1:N
         for cidx = 1:N
             for t = 1:T
                 sp = data[pidx, t]
                 sc = data[cidx, t]
                 for b = 1:B
-                    Mnm0[pidx, cidx] += sc * parents[t, cidx, 1+(pidx-1)*B+b]
-                    Mnm1[pidx, cidx] += sc * parents[t, cidx, 1+(pidx-1)*B+b]
+                    κ[pidx, cidx] += sc * parents[t, cidx, 1+(pidx-1)*B+b]
                 end
-                Mn0[pidx, cidx] += sp
-                ν1[pidx, cidx] += sp
+                ν[pidx, cidx] += sp
             end
         end
     end
-    model.κv0 = model.κ0 .+ Mnm0 
-    model.νv0 = model.ν0 .+ Mn0
-    model.κv1 = model.κ1 .+ Mnm1
-    model.νv1 = model.ν1 .+ Mn1
+    model.κv0 = model.κ0 .+ κ 
+    model.νv0 = model.ν0 .+ ν
+    model.κv1 = model.κ1 .+ κ
+    model.νv1 = model.ν1 .+ ν
     return copy(model.κv0), copy(model.νv0), copy(model.κv1), copy(model.νv1)
 end
 
-function variational_log_expectation(model::SparseWeightModel, pidx, cidx)
-    ElogW0 = digamma(model.κ0v[pidx, cidx]) - log(model.ν0v[pidx, cidx])
-    ElogW1 = digamma(model.κ1v[pidx, cidx]) - log(model.ν1v[pidx, cidx])
-    return (1 - ρ[pidx, cidx]) * ElogW0 + ρ[pidx, cidx] * ElogW1
+function variational_log_expectation(model::SpikeAndSlabWeightModel, pidx, cidx)
+    ElogW0 = digamma(model.κv0[pidx, cidx]) - log(model.νv0[pidx, cidx])
+    ElogW1 = digamma(model.κv1[pidx, cidx]) - log(model.νv1[pidx, cidx])
+    return (1 - model.ρv[pidx, cidx]) * ElogW0 + model.ρv[pidx, cidx] * ElogW1
+end
+
+function q(model::SpikeAndSlabWeightModel, a)
+    """Spike-and-slab model is a mixture model, so `q` is a conditional distribution."""
+    if a == 0
+        reshape([Gamma(κ, 1 / ν) for (κ, ν) in zip(vec(model.κv0), vec(model.νv0))], size(model.W))
+    elseif a == 1
+        reshape([Gamma(κ, 1 / ν) for (κ, ν) in zip(vec(model.κv1), vec(model.νv1))], size(model.W))
+    end
 end
