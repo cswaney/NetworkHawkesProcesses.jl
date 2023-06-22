@@ -7,6 +7,10 @@ using Test
 
 @testset "HomogeneousProcess" begin
 
+    @test_throws DomainError HomogeneousProcess(-1 * ones(1), 1.0, 1.0)
+    @test_throws DomainError HomogeneousProcess(ones(1), -1.0, 1.0)
+    @test_throws DomainError HomogeneousProcess(ones(1), 1.0, -1.0)
+
     nodes = [1, 1, 2, 2]
     parentnodes = [0, 1, 0, 2]
     nnodes = 2

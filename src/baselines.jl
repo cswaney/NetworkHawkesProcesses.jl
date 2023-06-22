@@ -24,11 +24,11 @@ A homogeneous Poisson process with constant intensity λ ~ Gamma(α0, β0).
 - `α0`: shape parameter of Gamma prior for Bayesian inference (default: 1.0).
 - `β0`: rate parameter of Gamma prior for Bayesian inference (default: 1.0).
 """
-mutable struct HomogeneousProcess <: Baseline
-    λ
-    α0
-    β0
-    function HomogeneousProcess(λ, α0, β0)
+mutable struct HomogeneousProcess{T<:AbstractFloat} <: Baseline
+    λ::Vector{T}
+    α0::T
+    β0::T
+    function HomogeneousProcess{T}(λ, α0, β0) where T <: AbstractFloat
         any(λ .< 0) && throw(DomainError(λ, "HomogeneousProcess: intensity parameter λ must be non-negative"))
         α0 > 0 || throw(DomainError(α0, "HomogeneousProcess: shape parameter α0 must be positive"))
         β0 > 0 || throw(DomainError(β0, "HomogeneousProcess: rate parameter β0 must be positive"))
@@ -36,7 +36,8 @@ mutable struct HomogeneousProcess <: Baseline
     end
 end
 
-HomogeneousProcess(λ) = HomogeneousProcess(λ, 1.0, 1.0)
+HomogeneousProcess(λ::Vector{T}, α0::T, β0::T) where {T<:AbstractFloat} = HomogeneousProcess{T}(λ, α0, β0)
+HomogeneousProcess(λ::Vector{T}) where {T<:AbstractFloat} = HomogeneousProcess{T}(λ, 1.0, 1.0)
 
 ndims(process::HomogeneousProcess) = length(process.λ)
 params(process::HomogeneousProcess) = copy(process.λ)
