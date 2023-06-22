@@ -15,6 +15,9 @@ using Test
     @test ndims(process) == 3
     @test params(process) == ones(3)
     @test_throws ArgumentError params!(process, ones(1)) 
+    @test_throws DomainError rand(process, -1.0)
+    @test_throws DomainError rand(process, 1, -1.0)
+    @test_throws BoundsError rand(process, 0, 1.0)
 
     nodes = [1, 1, 2, 2]
     parentnodes = [0, 1, 0, 2]

@@ -50,7 +50,25 @@ function params!(process::HomogeneousProcess, x)
     end
 end
 
-function rand(process::HomogeneousProcess, duration)
+"""
+rand(process::HomogeneousProcess, duration::AbstractFloat)
+
+Sample a random sequence of events from a homogeneous Poisson process.
+
+# Arguments
+- `duration::T<:AbstractFloat`: the sampling duration.
+
+# Returns
+- `data::tuple{Vector{Float64},Vector{Int64},T}`: sampled events, nodes and duration data.
+
+# Example
+```julia
+p = HomogeneousProcess(ones(2))
+events, nodes, duration = rand(p, 100.0)
+````
+"""
+function rand(process::HomogeneousProcess, duration::AbstractFloat)
+    duration < 0.0 && throw(DomainError("Sampling duration must be non-negative ($(duration))"))
     nnodes = ndims(process)
     events = Array{Array{Float64,1},1}(undef, nnodes)
     nodes = Array{Array{Int64,1},1}(undef, nnodes)
@@ -62,10 +80,23 @@ function rand(process::HomogeneousProcess, duration)
     events = vcat(events...)
     nodes = vcat(nodes...)
     idx = sortperm(events)
-    return events[idx], Vector{Int64}(nodes[idx]), duration
+    return events[idx], nodes[idx], duration
 end
 
-function rand(process::HomogeneousProcess, node, duration)
+"""
+rand(process::HomogeneousProcess, node::Integer, duration::AbstractFloat)
+
+Sample a random sequence of events from a single node of a homogeneous Poisson process.
+
+# Arguments
+- `node::S<:Integer`: the node to sample.
+- `duration::T<:AbstractFloat`: the sampling duration.
+
+# Returns
+- `data::Vector{Float64}`: sampled events data.
+"""
+function rand(process::HomogeneousProcess, node, duration::AbstractFloat)
+    duration < 0.0 && throw(DomainError("Sampling duration must be non-negative ($(duration))"))
     n = rand(Poisson(process.λ[node] * duration))
     return sort(rand(Uniform(0, duration), n))
 end
