@@ -15,7 +15,7 @@ function intensity(process::Baseline, node, time) end
 
 
 """
-HomogeneousProcess
+    HomogeneousProcess(λ, α0, β0)
 
 A homogeneous Poisson process with constant intensity λ ~ Gamma(α0, β0).
 
@@ -51,7 +51,7 @@ function params!(process::HomogeneousProcess, x)
 end
 
 """
-rand(process::HomogeneousProcess, duration)
+    rand(process::HomogeneousProcess, duration)
 
 Sample a random sequence of events from a homogeneous Poisson process.
 
@@ -84,7 +84,7 @@ function rand(process::HomogeneousProcess, duration)
 end
 
 """
-rand(process::HomogeneousProcess, node, duration)
+    rand(process::HomogeneousProcess, node, duration)
 
 Sample a random sequence of events from a single node of a homogeneous Poisson process.
 
@@ -156,11 +156,12 @@ end
 
 
 """
-LogGaussianCoxProcess
+    LogGaussianCoxProcess(x, λ, Σ, m)
 
 A log Gaussian Cox process constructed from a realization of a Gaussian process at fixed gridpoints.
 
-The model is
+### Description
+The data generating process is
 
     y ~ GP(0, K)
     λ(t) = exp(m + y(t))
@@ -172,24 +173,38 @@ For an arbitrary set of gridpoints, `x[1], ..., x[N]`, a corresponding sample of
 
 The process is sampled by interpolating between intensity values `λ[1], ..., λ[N]`.
 
-# Arguments
-- `x::Vector{Float64}`: a strictly increasing vectors of sampling grid points starting from x[1] = 0.0.
-- `λ::Vector{Vector{Float64}}`: a list of non-negative intensity vectors such that `λ[k][i] = λ[k]([x[i])`.
-- `Σ::PDMat{Float64}`: a positive-definite variance matrix.
-- `m::Vector{Float64}`: intensity offsets equal to `log(λ0)` of homogeneous processes.
+### Fields
+- `x::Vector{T<:AbstractFloat}`: a strictly increasing vectors of sampling grid points starting from x[1] = 0.0.
+- `λ::Vector{Vector{T<:AbstractFloat}}`: a list of non-negative intensity vectors such that `λ[k][i] = λ[k]([x[i])`.
+- `Σ::PDMat{T<:AbstractFloat}`: a positive-definite variance matrix.
+- `m::Vector{T<:AbstractFloat}`: intensity offsets equal to `log(λ0)` of homogeneous processes.
 """
-struct LogGaussianCoxProcess <: Baseline
-    x::Vector{Float64}
-    λ::Vector{Vector{Float64}}
-    Σ::PDMat{Float64}
-    m::Float64
-    function LogGaussianCoxProcess(x, λ, Σ, m)
+struct LogGaussianCoxProcess{T<:AbstractFloat} <: Baseline
+    x::Vector{T}
+    λ::Vector{Vector{T}}
+    Σ::PDMat{T}
+    m::T
+    function LogGaussianCoxProcess{T}(x, λ, Σ, m) where {T<:AbstractFloat}
         x[1] == 0.0 || throw(DomainError(x, "Grid points x must start at 0."))
         return new(x, λ, PDMat(Σ), m)
     end
 end
 
-LogGaussianCoxProcess(x, λ, K::Kernel, m) = LogGaussianCoxProcess(x, λ, K(x), m)
+HomogeneousProcess(λ::Vector{T}, α0::T, β0::T) where {T<:AbstractFloat} = HomogeneousProcess{T}(λ, α0, β0)
+
+LogGaussianCoxProcess(
+    x::Vector{T},
+    λ::Vector{Vector{T}},
+    Σ::PDMat{T},
+    m::T
+) where {T<:AbstractFloat} = LogGaussianCoxProcess{T}(x, λ, Σ, m)
+
+LogGaussianCoxProcess(
+    x::Vector{T},
+    λ::Vector{Vector{T}},
+    K::Kernel,
+    m::T
+) where {T<:AbstractFloat} = LogGaussianCoxProcess{T}(x, λ, K(x), m)
 
 function LogGaussianCoxProcess(gp::GaussianProcess, m, T, n, k)
     """Construct a LGCP with random intensity given a Gaussian process."""
