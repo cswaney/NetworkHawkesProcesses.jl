@@ -23,7 +23,6 @@ abstract type HawkesProcess end
 include("utils/helpers.jl")
 include("utils/interpolation.jl")
 include("utils/gaussian.jl")
-include("inference.jl")
 include("baselines.jl")
 include("impulses.jl")
 include("weights.jl")
@@ -31,6 +30,7 @@ include("networks.jl")
 include("continuous.jl")
 include("discrete.jl")
 include("parents.jl")
+include("inference.jl")
 include("plotting.jl")
 
 export HawkesProcess,
