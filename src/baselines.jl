@@ -134,7 +134,7 @@ function integrated_intensity(process::HomogeneousProcess, duration)
 end
 
 function integrated_intensity(process::HomogeneousProcess, node, duration)
-    """Calculate the integral of the intensity."""
+    """Calculate the integral of the intensity on a single node."""
     duration < 0 && throw(DomainError("duration must be non-negative"))
     return process.λ[node] .* duration
 end
@@ -150,6 +150,7 @@ function intensity(process::HomogeneousProcess, node::Int64, time::Float64)
 end
 
 function logprior(process::HomogeneousProcess)
+    """Calculate the log prior probably of process parameters given hyperparameters."""
     return sum(log.(pdf.(Gamma.(process.α0, 1 / process.β0), process.λ)))
 end
 
