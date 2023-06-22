@@ -1,5 +1,5 @@
 using NetworkHawkesProcesses
-using NetworkHawkesProcesses: node_counts
+using NetworkHawkesProcesses: node_counts, nparams
 using NetworkHawkesProcesses: split_extract
 using NetworkHawkesProcesses: SquaredExponentialKernel, GaussianProcess
 using NetworkHawkesProcesses: sufficient_statistics, integrated_intensity, update!
@@ -58,15 +58,19 @@ end
     x = collect(0.0:0.1:1.0)
     y = rand(gp, x)
     λ = [exp.(y)]
+    @test_throws DomainError LogGaussianCoxProcess(collect(1.0:0.1:2.0), λ, kernel, 0.0)
     process = LogGaussianCoxProcess(x, λ, kernel, 0.0)
     @test ndims(process) == 1
     @test length(process) == 1.0
+    @test nparams(process) == 11
+    @test_throws ArgumentError params!(process, [0.0])
 
     ys = [rand(gp, x), rand(gp, x)]
     λ = [exp.(y) for y in ys]
     process = LogGaussianCoxProcess(x, λ, kernel, 0.0)
     @test ndims(process) == 2
     @test length(process) == 1.0
+    @test nparams(process) == 22
 
 end
 

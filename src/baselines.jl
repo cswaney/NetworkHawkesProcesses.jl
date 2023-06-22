@@ -222,16 +222,15 @@ nparams(process::LogGaussianCoxProcess) = sum(length.(process.λ))
 
 function params!(process::LogGaussianCoxProcess, x)
     if length(x) != sum(length.(process.λ))
-        error("Parameter vector length does not match model parameter length.")
-    else
-        nnodes = length(process.λ)
-        start_index = 1
-        for node = 1:nnodes
-            npoints = length(process.λ[node])
-            stop_index = start_index + npoints - 1
-            process.λ[node] .= x[start_index:stop_index]
-            start_index += npoints
-        end
+        throw(ArgumentError("Parameter vector length ($(length(x))) does not match model parameter length ($(sum(length.(process.λ))))."))
+    end
+    nnodes = length(process.λ)
+    start_index = 1
+    for node = 1:nnodes
+        npoints = length(process.λ[node])
+        stop_index = start_index + npoints - 1
+        process.λ[node] .= x[start_index:stop_index]
+        start_index += npoints
     end
 end
 
