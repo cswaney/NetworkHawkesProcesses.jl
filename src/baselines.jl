@@ -1,6 +1,5 @@
 abstract type Baseline end
 
-import Base.rand
 import Base.size
 import Base.length
 
@@ -67,7 +66,7 @@ p = HomogeneousProcess(ones(2))
 events, nodes, duration = rand(p, 100.0)
 ````
 """
-function rand(process::HomogeneousProcess, duration)
+function Base.rand(process::HomogeneousProcess, duration)
     duration < 0.0 && throw(DomainError("Sampling duration must be non-negative ($(duration))"))
     nnodes = ndims(process)
     events = Array{Array{Float64,1},1}(undef, nnodes)
@@ -234,8 +233,29 @@ function params!(process::LogGaussianCoxProcess, x)
     end
 end
 
-function rand(process::LogGaussianCoxProcess, duration)
-    length(process) != duration && error("Sample duration does not match process duration.")
+"""
+    rand(process::LogGaussianCoxProcess, duration)
+
+Sample a random sequence of events from a log Gaussian Cox process.
+
+# Arguments
+- `duration`: the sampling duration.
+
+# Returns
+- `data::tuple{Vector{Float64},Vector{Int64},T}`: sampled events, nodes and duration data.
+
+# Example
+```julia
+kernel = SquaredExponentialKernel(1.0, 1.0)
+gp = GaussianProcess(kernel)
+x = collect(0.0:0.1:10.0)
+y = rand(gp, x)
+λ = [exp.(y)]
+p = LogGaussianCoxProcess(x, λ, kernel, 0.0)
+events, nodes, duration = rand(p, 10.0)
+"""
+function Base.rand(process::LogGaussianCoxProcess, duration)
+    length(process) != duration && throw(ArgumentError("Sample duration does not match process duration."))
     nnodes = ndims(process)
     events = Array{Array{Float64,1},1}(undef, nnodes)
     nodes = Array{Array{Int64,1},1}(undef, nnodes)
@@ -247,11 +267,23 @@ function rand(process::LogGaussianCoxProcess, duration)
     events = vcat(events...)
     nodes = vcat(nodes...)
     idx = sortperm(events)
-    return events[idx], Vector{Int64}(nodes[idx]), duration
+    return events[idx], nodes[idx], duration
 end
 
-function rand(process::LogGaussianCoxProcess, node, duration)
-    length(process) != duration && error("Sample duration does not match process duration.")
+"""
+    rand(process::LogGaussianCoxProcess, node, duration)
+
+Sample a random sequence of events from a single node of a log Gaussian Cox process.
+
+# Arguments
+- `node`: the node to sample.
+- `duration`: the sampling duration.
+
+# Returns
+- `data::Vector{Float64}`: sampled events data.
+"""
+function Base.rand(process::LogGaussianCoxProcess, node, duration)
+    length(process) != duration && throw(ArgumentError("Sample duration does not match process duration."))
     f = LinearInterpolator(process.x, process.λ[node])
     return rejection_sample(f, rand(Poisson(integrate(f))))
 end
@@ -442,7 +474,7 @@ end
 
 variational_params(p::DiscreteHomogeneousProcess) = [copy(p.αv); copy(p.βv)]
 
-function rand(p::DiscreteHomogeneousProcess, T::Int64)
+function Base.rand(p::DiscreteHomogeneousProcess, T::Int64)
     return vcat(transpose(rand.(Poisson.(p.λ .* p.dt), T))...)
 end
 
@@ -566,7 +598,7 @@ function params!(process::DiscreteLogGaussianCoxProcess, x)
     end
 end
 
-function rand(p::DiscreteLogGaussianCoxProcess, T::Int64)
+function Base.rand(p::DiscreteLogGaussianCoxProcess, T::Int64)
     T == nsteps(p) || error("Sample length does not match process duration.")
     ts = range(p)
     K = ndims(p)
