@@ -14,6 +14,7 @@ using Test
     process = HomogeneousProcess(ones(3))
     @test ndims(process) == 3
     @test params(process) == ones(3)
+    @test_throws ArgumentError params!(process, ones(1)) 
 
     nodes = [1, 1, 2, 2]
     parentnodes = [0, 1, 0, 2]

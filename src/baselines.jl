@@ -44,7 +44,7 @@ params(process::HomogeneousProcess) = copy(process.λ)
 
 function params!(process::HomogeneousProcess, x)
     if length(x) != length(process.λ)
-        error("Parameter vector length does not match model parameter length.")
+        throw(ArgumentError("Parameter vector length ($(length(x))) does not match model parameter length ($(length(process.λ)))."))
     else
         process.λ .= x
     end
