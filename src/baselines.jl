@@ -189,8 +189,6 @@ struct LogGaussianCoxProcess{T<:AbstractFloat} <: Baseline
     end
 end
 
-HomogeneousProcess(λ::Vector{T}, α0::T, β0::T) where {T<:AbstractFloat} = HomogeneousProcess{T}(λ, α0, β0)
-
 LogGaussianCoxProcess(
     x::Vector{T},
     λ::Vector{Vector{T}},
@@ -434,14 +432,14 @@ The model supports Bayesian inference of the probabilistic model:
 - `β0::Float64`: the inverse-scale (i.e., rate) parameter of the Gamma prior.
 - `dt::Float64`: the physical time represented by each time step, `t`.
 """
-mutable struct DiscreteHomogeneousProcess <: DiscreteBaseline
-    λ::Vector{Float64}
-    α0::Float64
-    β0::Float64
-    αv::Vector{Float64}
-    βv::Vector{Float64}
-    dt::Float64
-    function DiscreteHomogeneousProcess(λ, α0, β0, αv, βv, dt)
+mutable struct DiscreteHomogeneousProcess{T<:AbstractFloat} <: DiscreteBaseline
+    λ::Vector{T}
+    α0::T
+    β0::T
+    αv::Vector{T}
+    βv::Vector{T}
+    dt::T
+    function DiscreteHomogeneousProcess{T}(λ, α0, β0, αv, βv, dt) where {T <: AbstractFloat}
         any(λ .< 0) && throw(DomainError(λ, "DiscreteHomogeneousProcess: intensity parameter λ must be non-negative"))
         α0 > 0 || throw(DomainError(α0, "DiscreteHomogeneousProcess: shape parameter α0 must be positive"))
         β0 > 0 || throw(DomainError(β0, "DiscreteHomogeneousProcess: rate parameter β0 must be positive"))
@@ -452,12 +450,16 @@ mutable struct DiscreteHomogeneousProcess <: DiscreteBaseline
     end
 end
 
-function DiscreteHomogeneousProcess(λ, dt=1.0)
+function DiscreteHomogeneousProcess(λ::Vector{T}, α0::T, β0::T, αv::Vector{T}, βv::Vector{T}, dt=1.0) where {T<:AbstractFloat}
+    return DiscreteHomogeneousProcess{T}(λ, α0, β0, αv, βv, dt)
+end
+
+function DiscreteHomogeneousProcess(λ::Vector{T}, dt=1.0) where {T<:AbstractFloat}
     α0 = 1.0
     β0 = 1.0
     αv = ones(size(λ))
     βv = ones(size(λ))
-    return DiscreteHomogeneousProcess(λ, α0, β0, αv, βv, dt)
+    return DiscreteHomogeneousProcess{T}(λ, α0, β0, αv, βv, dt)
 end
 
 ndims(p::DiscreteHomogeneousProcess) = length(p.λ)
@@ -474,18 +476,36 @@ end
 
 variational_params(p::DiscreteHomogeneousProcess) = [copy(p.αv); copy(p.βv)]
 
-function Base.rand(p::DiscreteHomogeneousProcess, T::Int64)
+"""
+    rand(process::DiscreteHomogeneousProcess, T::Signed)
+
+Sample a random sequence of events from a discrete homogeneous Poisson process.
+
+# Arguments
+- `T::Integer`: the sampling duration as a number of discrete time steps.
+
+# Returns
+- `data::Matrix{Int64}`: an `nchannels x nsteps` matrix of sampled events.
+
+# Example
+```julia
+p = DiscreteHomogeneousProcess(ones(2))
+data = rand(p, 100)
+````
+"""
+function Base.rand(p::DiscreteHomogeneousProcess, T::Integer)
+    T < 0 && throw(DomainError(T, "Number of time steps must be non-negative"))
     return vcat(transpose(rand.(Poisson.(p.λ .* p.dt), T))...)
 end
 
 function intensity(p::DiscreteHomogeneousProcess, ts)
-    any(ts .< 0.0) && throw(DomainError(ts, "intensity: times ts must be non-negative"))
+    any(ts .< 0.0) && throw(DomainError(ts, "Times must be non-negative"))
     Matrix(transpose(repeat(p.λ, 1, length(ts)))) .* p.dt
 end
 
 function intensity(p::DiscreteHomogeneousProcess, node, time)
-    (node < 1 || node > ndims(p)) && throw(DomainError(node, "intensity: node must be between one and ndims"))
-    time < 0.0 && throw(DomainError(time, "intensity: time must be non-negative"))
+    (node < 1 || node > ndims(p)) && throw(DomainError(node, "Nodes must be between one and ndims"))
+    time < 0.0 && throw(DomainError(time, "Time must be non-negative"))
     p.λ[node] .* p.dt
 end
 
@@ -537,6 +557,7 @@ end
 function q(process::DiscreteHomogeneousProcess)
     return [Gamma(α, 1 / β) for (α, β) in zip(process.αv, process.βv)]
 end
+
 
 """
     DiscreteLogGaussianCoxProcess

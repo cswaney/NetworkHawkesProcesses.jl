@@ -102,5 +102,7 @@ end
     @test_throws DomainError integrated_intensity(process, 1, -1.0)
 
     @test_throws ArgumentError update!(process, zeros(2, 10), zeros(2, 10, 1))
+
+    @test_throws DomainError rand(process, -1)
 end
 
