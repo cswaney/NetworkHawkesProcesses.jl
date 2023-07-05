@@ -1,28 +1,28 @@
-abstract type Weights end
-import Base.rand
-import Base.size
+using LinearAlgebra: Diagonal, diag
 
-size(model::Weights) = size(model.W)[1]
+abstract type Weights end
+
+Base.size(model::Weights) = size(model.W)[1]
 
 params(model::Weights) = copy(vec(model.W))
 
 function params!(model::Weights, x)
     if length(x) != length(model.W)
-        error("Parameter vector length does not match model parameter length.")
+        throw(ArgumenetError("The length of parameter vector `x` should equal the number of model parameters."))
     else
         model.W = reshape(x, size(model.W))
     end
 end
 
-function rand(model::Weights)
+function Base.rand(model::Weights)
     return rand.(Poisson.(model.W)) # NOTE: does not account for connection indicator
 end
 
-function rand(model::Weights, row::Int64)
+function Base.rand(model::Weights, row::Int64)
     return rand.(Poisson.(model.W[row, :])) # NOTE: does not account for connection indicator
 end
 
-function rand(model::Weights, row::Int64, col::Int64)
+function Base.rand(model::Weights, row::Int64, col::Int64)
     return rand(Poisson(model.W[row, col])) # NOTE: does not account for connection indicator
 end
 
@@ -40,6 +40,103 @@ function sufficient_statistics(model::Weights, data, parents)
         Mnm = parent_counts(nodes, parentnodes, nnodes)
     end
     return Mn, Mnm
+end
+
+
+"""
+    IndependentWeightModel(W)
+
+A weight model for Hawkes processes with independent nodes.
+
+# Arguments
+- `W::Diagonal{T}`: diagonal, non-negative weight matrix defining self-connection weights
+- `κ::T`: (hyperparameter) shape parameter for a Gamma distribution
+- `ν::T`: (hyperparameter) rate parameter for a Gamma distribution
+- `_κ::Vector{T}`: (variational parameter) shape parameters for Gamma distributions
+- `_ν::Vector{T}`: (variational parameter) rate parameters for Gamma distributions
+"""
+struct IndependentWeightModel{T<:AbstractFloat} <: Weights
+    W::Diagonal{T}
+    κ::T
+    ν::T
+    _κ::Vector{T}
+    _ν::Vector{T}
+
+    function IndependentWeightModel{T}(W, κ, ν, _κ, _ν) where T <: AbstractFloat
+        any(diag(W) .< 0.0) && throw(DomainError("IndependentWeightModel: weight parameters W should be non-negative"))
+        κ > 0.0 || throw(DomainError("IndependentWeightModel: shape hyperparameter κ should be positive"))
+        ν > 0.0 || throw(DomainError("IndependentWeightModel: rate hyperparameter ν should be positive"))
+        all(_κ .> 0.0) || throw(DomainError("IndependentWeightModel: shape variational parameters _κ should be positive"))
+        all(_ν .> 0.0) || throw(DomainError("IndependentWeightModel: rate variational parameters _ν should be positive"))
+        length(_κ) == length(diag(W)) || throw(ArgumentError("IndependentWeightModel: the length of variational shape parameter _κ should match the length of diag(W)"))
+        length(_ν) == length(diag(W)) || throw(ArgumentError("IndependentWeightModel: the length of variational rate parameter _ν should match the length of diag(W)"))
+
+        return new(W, κ, ν, _κ, _ν)
+    end
+end
+
+function IndependentWeightModel(W::Diagonal{T}, κ::T, ν::T,
+    _κ::Vector{T}, _ν::Vector{T}) where {T<:AbstractFloat}
+    return IndependentWeightModel{T}(W, κ, ν, _κ, _ν)
+end
+
+function IndependentWeightModel(W::Diagonal{T}) where {T<:AbstractFloat}
+    nnodes = length(diag(W))
+    return IndependentWeightModel{T}(W, 1.0, 1.0, ones(nnodes), ones(nnodes))
+end
+
+nparams(model::IndependentWeightModel) = length(diag(model.W))
+
+params(model::IndependentWeightModel) = diag(model.W) # NOTE: diag copies model.W.diag
+
+function params!(model::IndependentWeightModel, x)
+    if length(x) != nparams(model)
+        throw(ArgumentError("The length of parameter vector `x` should equal the number of model parameters."))
+    else
+        model.W.diag .= x
+    end
+end
+
+function resample!(model::IndependentWeightModel, data, parents)
+    Mn, Mnm = sufficient_statistics(model, data, parents)
+    κ = model.κ .+ diag(Mnm)
+    ν = model.ν .+ Mn
+    model.W .= rand.(Gamma.(κ, 1 ./ ν))
+end
+
+function logprior(model::IndependentWeightModel)
+    return sum(log.(pdf.(Gamma(model.κ, 1 / model.ν), model.W)))
+end
+
+function update!(model::IndependentWeightModel)
+    """Perform a variational inference update. `parents` is the `T x N x (1 + NB)` variational parameter for the auxillary parent variables."""
+    N, T = size(data)
+    B = div(size(parents)[3] - 1, N)
+    κ = zeros(N)
+    ν = zeros(N)
+    for idx = 1:N
+        for t = 1:T
+            s = data[idx, t]
+            for b = 1:B
+                κ[idx] += s * parents[t, cidx, 1 + (idx - 1) * B + b]
+            end
+            ν[idx] += s
+        end
+    end
+    model._κ = model.κ .+ κ
+    model._v = model.ν .+ ν
+    return copy(model._κ), copy(model._ν)
+end
+
+variational_params(model::IndependentWeightModel) = [vec(model._κ); vec(model._ν)]
+
+function variational_log_expectation(model::IndependentWeightModel, pidx)
+    return digamma(model._κ[pidx]) - log(model._ν[pidx])
+end
+
+function q(model::IndependentWeightModel)
+    """Return the variational distribution for the weights model."""
+    return Gamma.(mode._κ, 1 ./ model._ν)
 end
 
 

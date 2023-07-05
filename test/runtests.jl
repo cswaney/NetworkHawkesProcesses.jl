@@ -11,6 +11,10 @@ Random.seed!(0)
         include("baselines.jl")
     end
 
+    @testset "weights" begin
+        include("weights.jl")
+    end
+
     @testset "gaussian" begin
         include("gaussian.jl")
     end
