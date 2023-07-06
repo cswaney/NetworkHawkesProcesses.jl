@@ -101,7 +101,7 @@ function resample!(model::IndependentWeightModel, data, parents)
     Mn, Mnm = sufficient_statistics(model, data, parents)
     κ = model.κ .+ diag(Mnm)
     ν = model.ν .+ Mn
-    model.W .= rand.(Gamma.(κ, 1 ./ ν))
+    model.W.diag .= rand.(Gamma.(κ, 1 ./ ν))
 end
 
 function logprior(model::IndependentWeightModel)
