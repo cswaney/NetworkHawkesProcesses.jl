@@ -91,8 +91,8 @@ end
     @test_throws DomainError intensity(process, 1, -1.0)
     @test_throws DomainError intensity(process, -0.1:0.1:1.0)
 
-    data = [0 0 0 1 0 1 0 0 0 1; 2 0 0 0 0 0 0 0 0 0]
-    @test sufficient_statistics(process, data) == ([3, 2], 10)
+    parents = [0 0 0 1 0 1 0 0 0 1; 2 0 0 0 0 0 0 0 0 0]
+    @test sufficient_statistics(process, transpose(parents)) == ([3, 2], 10)
 
     @test integrated_intensity(process, 1.0) == [0.5, 0.5]
     @test integrated_intensity(process, 2.0) == [1.0, 1.0]
