@@ -172,22 +172,31 @@ end
 isstable(p::DiscreteStandardHawkesProcess) = maximum(abs.(eigvals(p.weights.W))) < 1.0
 
 function effective_weights(process::DiscreteStandardHawkesProcess)
+    # if typeof(process.weights) <: IndependentWeightModel
+    #     return vec(mapslices(diag, process.weights.W .* process.impulses.θ; dims=[1, 2]))
+    # else
+    #     return vec(process.weights.W .* process.impulses.θ)
+    # end
     return vec(process.weights.W .* process.impulses.θ)
 end
 
 function params(process::DiscreteStandardHawkesProcess)
     """Return a copy of a processes' trainable parameters as a vector."""
-    # return [params(process.baseline); params(process.impulses); params(process.weights)]
-    return [params(process.baseline); effective_weights(process)]
+    return [params(process.baseline); params(process.impulses); params(process.weights)]
+    # return [params(process.baseline); effective_weights(process)]
 end
 
 function weights(process::DiscreteStandardHawkesProcess, x)
+    """Extract connection and basis weights from a parameter vector in the effective weight space."""
     nbaseline = nparams(process.baseline)
     ndim = ndims(process)
     nbase = nbasis(process.impulses)
     weights = reshape(x[nbaseline+1:end], ndim, ndim, nbase)
     connection_weights = reshape(sum(weights, dims=3), ndim, ndim)
-    basis_weights = weights ./ connection_weights
+    if typeof(process.weights) <: IndependentWeightModel
+        connection_weights = Diagonal(connection_weights)
+    end
+    basis_weights = replace!(w -> isnan(w) || isinf(w) ? 0.0 : w, weights ./ connection_weights)
     return connection_weights, basis_weights
 end
 
