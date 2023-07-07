@@ -513,13 +513,13 @@ function resample!(p::DiscreteHomogeneousProcess, parents)
     Mn, T = sufficient_statistics(p, parents[:, :, 1])
     α = p.α0 .+ Mn
     β = p.β0 + T * p.dt
-    p.λ = vec(rand.(Gamma.(α, 1 ./ β)))
+    p.λ .= vec(rand.(Gamma.(α, 1 ./ β)))
     return copy(p.λ)
 end
 
 function sufficient_statistics(p::DiscreteHomogeneousProcess, data)
-    _, T = size(data)
-    Mn = sum(data, dims=[2])
+    T, _ = size(data)
+    Mn = sum(data, dims=[1])
     return vec(Mn), T
 end
 
