@@ -183,3 +183,74 @@ function q(model::SpikeAndSlabWeightModel, a)
         reshape([Gamma(κ, 1 / ν) for (κ, ν) in zip(vec(model.κv1), vec(model.νv1))], size(model.W))
     end
 end
+
+
+
+"""
+    UnivariateWeightModel
+
+"""
+mutable struct UnivariateWeightModel{T<:AbstractFloat}
+    w::T
+    α0::T
+    β0::T
+    _α0::T
+    _β0::T
+
+    function UnivariateWeightModel{T}(w, α0, β0, _α0, _β0) where {T <: AbstractFloat}
+        w < 0.0 && throw(DomainError(w, "weight parameter should be non-negative"))
+        α0 > 0.0 || throw(DomainError(α0, "shape parameter α0 should be positive"))
+        β0 > 0.0 || throw(DomainError(β0, "rate parameter β0 should be positive"))
+        _α0 > 0.0 || throw(DomainError(_α0, "shape parameter _α0 should be positive"))
+        _β0 > 0.0 || throw(DomainError(_β0, "rate parameter _β0 should be positive"))
+
+        return new(w, α0, β0, _α0, _β0)
+    end
+end
+
+UnivariateWeightModel(w::T, α0::T, β0::T, _α0::T, _β0::T) where {T<:AbstractFloat} = UnivariateWeightModel{T}(w, α0, β0, _α0, _β0)
+UnivariateWeightModel(w::T) where {T<:AbstractFloat} = UnivariateWeightModel{T}(w, 1.0, 1.0, 1.0, 1.0)
+
+nparams(model::UnivariateWeightModel) = 1
+params(model::UnivariateWeightModel) = [model.w]
+
+function params!(model::UnivariateWeightModel, θ)
+    length(θ) == 1 || throw(ArgumentError("length of parameter vector θ should equal the number of model parameters"))
+    w = θ[1]
+    w < 0.0 && throw(DomainError(w, "weight parameter w should be non-negative"))
+    model.w = w
+
+    return params(model)
+end
+
+function resample!(model, data, parents)
+    ntotal, nchild = sufficient_statistics(model, data, parents)
+    α = model.α0 + nchild
+    β = model.β0 + ntotal
+    model.w = rand(Gamma(α, 1 / β))
+
+    return model.w
+end
+
+function sufficient_statistics(model::UnivariateWeightModel, data, parents)
+    events, _ = data
+    _, parentnodes = parents
+    ntotal = length(events)
+    nchild = mapreduce(x -> x == 1, +, parentnodes)
+
+    return ntotal, nchild
+end
+
+# TODO: sufficient_statistics(model::UnivariateWeightModel, data::Matrix, parents)
+
+logprior(model::UnivariateWeightModel) = pdf(Gamma(model.α0, 1 / model.β0), model.w)
+
+# TODO: update!(model::UnivariateWeightModel, data, parents)
+
+variational_params(model::UnivariateWeightModel) = [model._α0, model._β0]
+
+function variational_log_expectation(model::UnivariateWeightModel)
+    return digamma(model._α0) - log(model._β0)
+end
+
+q(model::UnivariateWeightModel) = Gamma(model._α0, 1 / model._β0)
