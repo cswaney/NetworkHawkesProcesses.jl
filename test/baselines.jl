@@ -106,3 +106,31 @@ end
     @test_throws DomainError rand(process, -1)
 end
 
+@testset "UnivariateHomogeneousProcess" begin
+    
+    @test_throws DomainError UnivariateHomogeneousProcess(-1.0, 1.0, 1.0)
+    @test_throws DomainError UnivariateHomogeneousProcess(1.0, 0.0, 1.0)
+    @test_throws DomainError UnivariateHomogeneousProcess(1.0, 1.0, 0.0)
+
+    @test typeof(UnivariateHomogeneousProcess(Float16(1))) == UnivariateHomogeneousProcess{Float16}
+    @test_throws MethodError UnivariateHomogeneousProcess(Float32(1), 1.0, 1.0)
+    @test typeof(UnivariateHomogeneousProcess{Float32}(Float16(1), 1., 1.0)) == UnivariateHomogeneousProcess{Float32}
+
+    process = UnivariateHomogeneousProcess(1.0) # UnivariateHomogeneousProcess{Floata64}
+    @test ndims(process) == 0
+    @test params(process) == [1.0]
+    @test params!(process, [2.0]) == [2.0]
+    @test params!(process, 1.0) == [1.0]
+
+    duration = 10.0
+    parentnodes = [0, 1, 0, 0, 1, 1, 0, 1, 0]
+    @test sufficient_statistics(process, ([], duration), ([], parentnodes)) == (5, 10.0)
+
+    @test integrated_intensity(process, 10.0) == 10.0
+    @test_throws DomainError integrated_intensity(process, -10.0)
+    
+    @test_throws DomainError intensity(process, -10.0)
+    @test intensity(process, 1.0) == 1.0
+
+    @test logprior(process) == -1.0
+end

@@ -778,3 +778,92 @@ function elliptical_slice(process, data, node, y; max_attempts=100)
     end
     error("Elliptical slice sampling reached maximum attempts.")
 end
+
+
+
+
+abstract type UnivariateBaseline end
+
+Base.ndims(process::UnivariateBaseline) = 0
+
+"""
+    UnivariateHomogeneousProcess
+
+A univariate homogeneous Poisson process with constant intensity λ ~ Gamma(α0, β0).
+
+# Arguments
+- `λ::T`: constant, non-negative intensity parameter.
+- `α0::T`: shape parameter of Gamma prior (default: 1.0).
+- `β0::T`: rate parameter of Gamma prior (default: 1.0).
+"""
+mutable struct UnivariateHomogeneousProcess{T <: AbstractFloat} <: UnivariateBaseline
+    λ::T
+    α0::T
+    β0::T
+
+    function UnivariateHomogeneousProcess{T}(λ, α0, β0) where {T <: AbstractFloat}
+        λ < 0.0 && throw(DomainError(λ, "UnivariateHomogeneousProcess: intensity parameter λ should be non-negative"))
+        α0 > 0.0 || throw(DomainError(α0, "UnivariateHomogeneousProcess: shape parameter α0 should be positive"))
+        β0 > 0.0 || throw(DomainError(β0, "UnivariateHomogeneousProcess: rate parameter β0 should be positive"))
+        return new(λ, α0, β0)
+    end
+end
+
+function UnivariateHomogeneousProcess(λ::T, α0::T, β0::T) where {T <: AbstractFloat}
+    return UnivariateHomogeneousProcess{T}(λ, α0, β0)
+end
+
+UnivariateHomogeneousProcess(λ::T) where {T <: AbstractFloat} = UnivariateHomogeneousProcess{T}(λ, 1.0, 1.0)
+
+params(process::UnivariateHomogeneousProcess) = [process.λ]
+
+function params!(process::UnivariateHomogeneousProcess, θ)
+    length(θ) == 1 || throw(ArgumentError("params!: length of parameter vector θ should equal the number of model parameters"))
+    λ = θ[1]
+    λ < 0.0 && throw(DomainError(λ, "UnivariateHomogeneousProcess: intensity parameter λ should be non-negative"))
+    process.λ = λ
+
+    return params(process)
+end
+
+function Base.rand(process::UnivariateHomogeneousProcess, duration)
+    duration < 0.0 && throw(DomainError("rand: duration should be non-negative"))
+    n = rand(Poisson(process.λ * duration))
+    events = rand(Uniform(0, duration), n)
+
+    return events, duration
+end
+
+function resample!(process::UnivariateHomogeneousProcess, data, parents)
+    counts, duration = sufficient_statistics(process, data, parents)
+    α = process.α0 + counts
+    β = process.β0 + duration
+    process.λ = rand(Gamma(α, 1 / β))
+
+    return process.λ
+end
+
+function sufficient_statistics(process::UnivariateHomogeneousProcess, data, parents)
+    _, duration = data
+    _, parentnodes = parents
+    counts = mapreduce(x -> x == 0, +, parentnodes)
+
+    return counts, duration
+end
+
+function integrated_intensity(process::UnivariateHomogeneousProcess, duration)
+    """Calculate the integral of the intensity."""
+    duration < 0.0 && throw(DomainError("integrated_intensity: duration should be non-negative"))
+
+    return process.λ .* duration
+end
+
+function intensity(process::UnivariateHomogeneousProcess, time)
+    time < 0.0 && throw(DomainError("intensity: time should be non-negative"))
+    
+    return process.λ
+end
+
+function logprior(process::UnivariateHomogeneousProcess)
+    return log(pdf(Gamma(process.α0, 1 / process.β0), process.λ))
+end
