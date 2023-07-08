@@ -259,6 +259,153 @@ function logprior(impulse::LogitNormalImpulseResponse)
 end
 
 
+abstract type UnivariateImpulseResponse <: ImpulseResponse end
+
+
+"""
+    UnivariateLogitNormalImpulseResponse{T<:AbstractFloat}
+
+A univariate logit-normal impulse response function.
+
+This model is a building block for univariate Hawkes processes. Given a number of child events, it generates event times according to a stretched logit-normal distribution with location parameter `μ`, precision parameter `τ`, and support `[0, Δtmax]`.
+    
+For Bayesian inference we assume a uniform normal-gamma prior for `μ` and `τ`:
+    
+    `τ ~ Gamma(ατ, βτ)`
+    `μ | σ ~ Normal(μ, σ)`
+            
+where `σ = 1 / sqrt(κ * τ)`.
+
+# Arguments
+- `μ::T`: location parameter of the logit-normal distribution
+- `τ::T`: precision parameter of the logit-normal distribution (i.e., `1 / σ^2`)
+- `μμ::T`: location of the normal-gamma prior (default: 0.0)
+- `κμ::T`: precision multiplier of the normal-gamma prior (default: 1.0)
+- `ατ::T`: shape parameter of the normal-gamma prior (default: 1.0)
+- `βτ::T`: rate parameter of normal-gamma prior (default: 1.0)
+- `Δtmax::Float64`: upperbound of the process support, `[0, Δtmax]`
+"""
+mutable struct UnivariateLogitNormalImpulseResponse{T<:AbstractFloat} <: UnivariateImpulseResponse
+    μ::T
+    τ::T
+    μμ::T
+    κμ::T
+    ατ::T
+    βτ::T
+    Δtmax::T
+
+    function UnivariateLogitNormalImpulseResponse{T}(μ, τ, μμ, κμ, ατ, βτ, Δtmax) where {T<:AbstractFloat}
+        τ > 0.0 || throw(DomainError("UnivariateLogitNormalImpulseResponse: precision parameter τ should be positive"))
+        κμ > 0.0 || throw(DomainError("UnivariateLogitNormalImpulseResponse: precision hyperparameter κμ should be positive"))
+        ατ > 0.0 || throw(DomainError("UnivariateLogitNormalImpulseResponse: shape hyperparameter ατ should be positive"))
+        βτ > 0.0 || throw(DomainError("UnivariateLogitNormalImpulseResponse: rate hyperparameter βτ should be positive"))
+        Δtmax <= 0.0 && throw(DomainError("UnivariateLogitNormalImpulseResponse: process support Δtmax should be positive"))
+
+        return new(μ, τ, μμ, κμ, ατ, βτ, Δtmax)
+    end
+end
+
+function UnivariateLogitNormalImpulseResponse(μ::T, τ::T, μμ::T, κμ::T, ατ::T, βτ::T, Δtmax::T) where {T<:AbstractFloat}
+    return UnivariateLogitNormalImpulseResponse{T}(μ, τ, μμ, κμ, ατ, βτ, Δtmax)
+end
+
+function UnivariateLogitNormalImpulseResponse(μ::T, τ::T, Δtmax::T) where {T<:AbstractFloat}
+    return UnivariateLogitNormalImpulseResponse{T}(μ, τ, 0.0, 1.0, 1.0, 1.0, Δtmax)
+end
+
+nparams(model::UnivariateLogitNormalImpulseResponse) = 2
+params(model::UnivariateLogitNormalImpulseResponse) = [model.μ, model.τ]
+
+function params!(model::UnivariateLogitNormalImpulseResponse, θ)
+    length(θ) == nparams(model) || throw(ArgumentError("params!: length of parameter vector θ should equal the number of model parameters"))
+    μ, τ = θ
+    τ > 0.0 || throw(DomainError("UnivariateLogitNormalImpulseResponse: precision parameter τ should be positive"))
+    model.μ = μ
+    model.τ = τ
+
+    return params(model)
+end
+
+function intensity(model::UnivariateLogitNormalImpulseResponse)
+    return t -> pdf(LogitNormal(model.μ, model.τ^(-1 / 2)), t ./ model.Δtmax)
+end
+
+function intensity(model::UnivariateLogitNormalImpulseResponse, Δt)
+    return pdf(LogitNormal(model.μ, model.τ^(-1 / 2)), Δt ./ model.Δtmax)
+end
+
+function Base.rand(model::UnivariateLogitNormalImpulseResponse, n)
+    σ = 1.0 / sqrt(model.τ)
+    ts = rand(LogitNormal(model.μ, σ), n) .* model.Δtmax
+
+    return sort(ts)
+end
+
+function resample!(model::UnivariateLogitNormalImpulseResponse, data, parents)
+    n, xbar, vtot = sufficient_statistics(model, data, parents)
+    if n == 0 # no child events => use priors
+        @warn "resample!: no child events found"
+        model.τ = rand(Gamma(model.ατ, 1 / model.βτ))
+        σ = (1.0 / (model.κμ * model.τ))^(1 / 2)
+        model.μ = rand(Normal(model.μμ, σ))
+    else
+        α = model.ατ + n / 2
+        β = vtot / 2 + n * model.κμ / (n + model.κμ) * (xbar - model.μμ)^2 / 2 # TODO: why doesn't β update involve βτ?
+        # β = isnan(β) ? model.βτ : β
+        model.τ = rand(Gamma(α, 1.0 / β))
+        κ = model.κμ + n
+        μ = (model.κμ * model.μμ + n * xbar) / (model.κμ + n)
+        # μ = isnan(μ) ? model.μμ : μ
+        σ = (1.0 / (κ * model.τ))^(1 / 2)
+        model.μ = rand(Normal(μ, σ))
+    end
+
+    return model.μ, model.τ
+end
+
+function sufficient_statistics(model::UnivariateLogitNormalImpulseResponse, data, parents)
+    events, _ = data
+    parentindices, _ = parents
+    n = mapreduce(x -> x > 0, +, parentindices) # 0 => baseline event
+    xbar = log_duration_sum(events, parentindices, model.Δtmax) / n
+    vtot = log_duration_variation(xbar, events, parentindices, model.Δtmax)
+
+    return n, xbar, vtot
+end
+
+function log_duration_sum(events, parentindices, Δtmax)
+    xtot = 0
+    for (event, parentindex) in zip(events, parentindices)
+        if parentindex > 0 # baseline event => parentindex = 0
+            parentevent = events[parentindex]
+            xtot += log_duration(parentevent, event, Δtmax)
+        end
+    end
+
+    return xtot
+end
+
+function log_duration_variation(xbar, events, parentindices, Δtmax)
+    vtot = 0
+    for (event, parentindex) in zip(events, parentindices)
+        if parentindex > 0 # baseline event => parentindex = 0
+            parentevent = events[parentindex]
+            vtot += (log_duration(parentevent, event, Δtmax) - xbar)^2
+        end
+    end
+    return vtot
+end
+
+function logprior(model::UnivariateLogitNormalImpulseResponse)
+    ll = pdf(Gamma(model.ατ, 1 / model.βτ), model.τ)
+    σ = 1 / sqrt(model.κμ * model.τ)
+    ll += pdf(Normal(model.μμ, σ), model.μ)
+
+    return ll
+end
+
+
+
 abstract type DiscreteImpulseResponse end
 
 function basis(impulse::DiscreteImpulseResponse) end
@@ -280,7 +427,7 @@ end
 
 function DiscreteGaussianImpulseResponse(θ, nlags, dt=1.0)
     all(sum(θ, dims=3) .== 1.0) || error("Invalid discrete basis parameter.")
-    γ = 1.
+    γ = 1.0
     γv = ones(size(θ))
     impulse = DiscreteGaussianImpulseResponse(θ, γ, γv, nlags, dt, nothing)
     impulse.ϕ = intensity(impulse)
