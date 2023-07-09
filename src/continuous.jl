@@ -13,7 +13,7 @@ Sample a random sequence of events from a continuous Hawkes process.
 # Returns
 - `data::Tuple{Vector{Float64},Vector{Int64},Float64}`: a tuple containing a vector of events, a vector of nodes associated with each event, and the duration of the data sample.
 """
-function rand(process::ContinuousHawkesProcess, duration::Float64)
+function rand(process::ContinuousHawkesProcess, duration::AbstractFloat)
     nnodes = ndims(process)
     events = Array{Array{Float64,1},1}(undef, nnodes)
     for parentnode = 1:nnodes
@@ -534,4 +534,234 @@ function effective_weights(process::ContinuousNetworkHawkesProcess, parentnode)
     a = process.adjacency_matrix[parentnode, :]
     w = process.weights.W[parentnode, :]
     return a .* w
+end
+
+
+"""
+    ContinuousUnivariateHawkesProcess
+
+A univariate Hawkes processes composed of baseline and impulse response models. 
+"""
+mutable struct ContinuousUnivariateHawkesProcess <: ContinuousHawkesProcess
+    baseline::UnivariateBaseline
+    impulse_response::UnivariateImpulseResponse
+    weight::UnivariateWeightModel
+end
+
+isstable(process::ContinuousUnivariateHawkesProcess) = abs(process.weight.w) < 1.0
+
+function params(process::ContinuousUnivariateHawkesProcess)
+    return [params(process.baseline); params(process.impulse_response); process.weight.w]
+end
+
+nparams(process::ContinuousUnivariateHawkesProcess) = length(params(process))
+
+function params!(process::ContinuousUnivariateHawkesProcess, θ)
+    nparams(process) == length(θ) || throw(ArgumentError("params!: length of parameter vector θ ($length(θ)) should equal the number of model parameters ($nparams(process))"))
+    params!(process.baseline, θ[1:nparams(process.baseline)])
+    params!(process.impulse_response, θ[nparams(process.baseline) + 1:end-1])
+    params!(process.weight, θ[end])
+
+    return params(process)
+end
+
+function Base.rand(process::ContinuousUnivariateHawkesProcess, duration::AbstractFloat)
+    events = Float64[]
+    baseline_events, _ = rand(process.baseline, duration)
+    append!(events, baseline_events)
+    for event in baseline_events
+        _generate_children!_(events, event, process, duration)
+    end
+
+    return sort(events), duration
+end
+
+function _generate_children!_(events, parentevent, process::ContinuousUnivariateHawkesProcess, duration)
+    t0 = parentevent
+    nchildren = rand(Poisson(process.weight.w))
+    childevents = t0 .+ rand(process.impulse_response, nchildren)
+    append!(events, truncate(childevents, duration))
+    for event in childevents
+        _generate_children!_(events, event, process, duration)
+    end
+end
+
+function loglikelihood(process::ContinuousUnivariateHawkesProcess, data; recursive=true)
+    
+    if (process.impulse_response isa UnivariateExponentialImpulseResponse) && recursive
+        return recursive_loglikelihood(process, data)
+    end
+
+    events, duration = data
+    
+    ll = 0.0
+    ll -= sum(integrated_intensity(process.baseline, duration))
+    ll -= process.weight.w * length(events) # integrated impulse responses
+
+    if Threads.nthreads() > 1
+        ll = Threads.Atomic{Float64}(ll)
+        @debug "using multi-threaded loglikelihood calculation"
+        Threads.@threads for childindex = 1:length(events)
+            childtime = events[childindex]
+            λtot = total_intensity(process, events, childindex, childtime)
+            Threads.atomic_add!(ll, log(λtot))
+        end
+        
+        return ll.value
+    else
+        for (childindex, childtime) in enumerate(events)
+            λtot = total_intensity(process, events, childindex, childtime)
+            ll += log(λtot)
+        end
+        
+        return ll
+    end
+end
+
+function recursive_loglikelihood(process::ContinuousUnivariateHawkesProcess, data)
+    # TODO: this method only works if process.impulse_response isa UnivariateExponentialImpulseResponse
+    events, duration = data
+    
+    ll = 0.0
+    ll -= sum(integrated_intensity(process.baseline, duration))
+    ll -= process.weight.w * length(events) # approximate (exact requires `cdf`)
+
+    partialsum = 0.0
+    parenttime = 0.0
+    for childtime in events
+        λtot = intensity(process.baseline, childtime)
+        if parenttime > 0.0
+            Δt = childtime - parenttime
+            partialsum = exp(-Δt * process.impulse_response.θ) * (1 + partialsum)
+            λtot += process.weight.w * process.impulse_response.θ * partialsum
+        end
+        ll += log(λtot)
+        parenttime = childtime
+    end
+
+    return ll
+end
+
+function logprior(process::ContinuousUnivariateHawkesProcess)
+    ll = logprior(process.baseline)
+    ll += logprior(process.impulse_response)
+    ll += logprior(process.weight)
+
+    return ll
+end
+
+function intensity(proces::ContinuousUnivariateHawkesProcess, data, time::AbstractFloat)
+    events, _ = data
+    idx = time - process.impulse_response.Δtmax .< events .< time
+    λ = intensity(process.baseline, time)
+    for parenttime in events[idx]
+        Δt = time - parenttime
+        λ += impulse_response(process, Δt)
+    end
+
+    return λ
+end
+
+intensity(process::ContinuousUnivariateHawkesProcess,
+    data, times::Vector{AbstractFloat}) = map(t -> intensity(process, data, t), times)
+
+function total_intensity(process::ContinuousUnivariateHawkesProcess,
+    events::Vector{T}, index::Int, time::AbstractFloat) where {T<:AbstractFloat}
+    """Calculate the total intensity of the `index`-th event occurring at `time`."""
+    λtot = intensity(process.baseline, time)
+    index == 1 && return λtot
+    parentindex = index - 1
+    while events[parentindex] > time - process.impulse_response.Δtmax
+        parenttime = events[parentindex]
+        Δt = time - parenttime
+        λtot += impulse_response(process, Δt)
+        parentindex -= 1
+        parentindex == 0 && break
+    end
+    return λtot
+end
+
+impulse_response(process::ContinuousUnivariateHawkesProcess,
+    Δt::AbstractFloat) = process.weight.w * intensity(process.impulse_response, Δt)
+
+function mle!(process::ContinuousUnivariateHawkesProcess, data; optimizer=BFGS, verbose=false, f_abstol=1e-6, regularize=false, guess=nothing)
+
+    function objective(x)
+        params!(process, x)
+        return regularize ? -loglikelihood(process, data) - logprior(process) : -loglikelihood(process, data)
+    end
+
+    minloss = Inf
+    outer_iter = 0
+    converged = false
+    steps = 0
+
+    function status_update(o)
+        if o.iteration == 0
+            if verbose
+                println("* iteration (n=$outer_iter)")
+            end
+            outer_iter += 1
+            minloss = Inf
+        end
+        if o.iteration % 1 == 0
+            if verbose
+                println(" > step: $(o.iteration), loss: $(o.value), elapsed: $(o.metadata["time"])")
+            end
+        end
+        if abs(o.value - minloss) < f_abstol
+            converged = true
+            steps = o.iteration
+            println("\n* Status: f_abstol convergence criteria reached!")
+            println("    elapsed: $(o.metadata["time"])")
+            println("    final loss: $(o.value)")
+            println("    min. loss: $(minloss)")
+            println("    outer iterations: $outer_iter")
+            println("    inner iterations: $(o.iteration)\n")
+            return true
+        else
+            minloss = o.value
+        end
+        return false
+    end
+
+    # TODO: the random guess and lower bounds don't seem right for all parameters, e.g. logit-normal impulse response mean can be negative, so this creates bias. More generally, we can't guaruntee these are good guesses and bounds for any model that might permit MLE estimation. (This also needs to be fixed for ContinuousStandardHawkesProcess).
+    guess = guess === nothing ? rand(length(params(process))) : guess
+    lower = fill(1e-6, size(guess))
+    upper = fill(1e1, size(guess))
+    optimizer = Fminbox(optimizer())
+    options = Optim.Options(callback=status_update)
+    res = optimize(objective, lower, upper, guess, optimizer, options)
+    
+    return MaximumLikelihood(
+        res.minimizer,
+        -res.minimum,
+        steps,
+        res.time_run,
+        converged ? "success" : "failure"
+    )
+end
+
+function resample!(process::ContinuousUnivariateHawkesProcess, data)
+    parents = resample_parents(process, data)
+    resample!(process.baseline, data, parents)
+    resample!(process.impulse_response, data, parents)
+    resample!(process.weight, data, parents)
+
+    return params(process)
+end
+
+
+
+
+
+abstract type ContinuousMultivariateHawkesProcess <: ContinuousHawkesProcess end
+
+"""
+    ContinuousIndependentHawkesProcess
+
+A container type for an collection of independent univariate Hawkes processes. Provides convenience functions to construct non-independent multivariate processes.
+"""
+struct ContinuousIndependentHawkesProcess <: ContinuousMultivariateHawkesProcess
+    processes::Vector{ContinuousUnivariateHawkesProcess}
 end

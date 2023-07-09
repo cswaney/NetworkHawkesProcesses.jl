@@ -35,6 +35,8 @@ include("plotting.jl")
 
 export HawkesProcess,
        ContinuousHawkesProcess,
+       ContinuousUnivariateHawkesProcess,
+       ContinuousMultivariateHawkesProcess,
        ContinuousStandardHawkesProcess,
        ContinuousNetworkHawkesProcess,
        DiscreteHawkesProcess,

@@ -19,6 +19,10 @@ Random.seed!(0)
         include("weights.jl")
     end
 
+    @testset "continuous" begin
+        include("continuous.jl")
+    end
+
     @testset "gaussian" begin
         include("gaussian.jl")
     end

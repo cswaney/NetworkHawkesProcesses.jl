@@ -45,6 +45,51 @@ function resample_parent(process::ContinuousHawkesProcess, event, node, index, e
     return parent, parentnode
 end
 
+function resample_parents(process::ContinuousUnivariateHawkesProcess, data)
+    """Resample latent parent variables given model parameters and event data."""
+    events, _ = data
+    parents = Vector{Int64}(undef, length(events))
+    parentnodes = Vector{Int64}(undef, length(events))
+    if Threads.nthreads() > 1
+        @debug "using multi-threaded parent sampler"
+        Threads.@threads for index in eachindex(events)
+            event = events[index]
+            parent, parentnode = resample_parent(process, event, index, events)
+            parents[index] = parent
+            parentnodes[index] = parentnode
+        end
+    else
+        for (index, event) in enumerate(events)
+            parent, parentnode = resample_parent(process, event, index, events)
+            parents[index] = parent
+            parentnodes[index] = parentnode
+        end
+    end
+    return parents, parentnodes
+end
+
+function resample_parent(process::ContinuousUnivariateHawkesProcess, event, index, events)
+    if index == 1
+        return 0, 0
+    end
+    λs = []
+    parentindices = []
+    parentindex = index - 1
+    while events[parentindex] > event - process.impulse_response.Δtmax
+        parenttime = events[parentindex]
+        append!(λs, impulse_response(process, event - parenttime))
+        append!(parentindices, parentindex)
+        parentindex -= 1
+        parentindex == 0 && break
+    end
+    append!(λs, intensity(process.baseline, event))
+    append!(parentindices, 0)
+    index = rand(Categorical(λs ./ sum(λs)))
+    parent = parentindices[index]
+    parentnode = parent > 0 ? 1 : 0
+    return parent, parentnode
+end
+
 function get_parentnodes(nodes, parents)
     """Look-up the node each parent occurred on. Returns zero for parent events with value zero (i.e., the "parent event" is the baseline process)."""
     return Vector{Int64}([get_parentnode(nodes, p) for p in parents])
