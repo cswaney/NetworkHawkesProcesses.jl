@@ -117,7 +117,7 @@ LogitNormalImpulseResponse
 
 A logit-normal impulse response function.
 
-This model is a building block for Hawkes process. Given a number of child events on node `j` attributed to node `i`, it generates event times according to a stretched logit-normal distribution with location parameter `μ[i, j]`, precision parameter `τ[i, j]`, and support `[0, Δtmax]`.
+This model is a building block for Hawkes process. Given a number of child events on node `j` attributed to node `i`, it generates event times according to a stretched and scaled logit-normal distribution with location parameter `μ[i, j]`, precision parameter `τ[i, j]`, and support `[0, Δtmax]`.
     
 For Bayesian inference we assume a uniform normal-gamma prior for `μ` and `τ`:
     
@@ -166,7 +166,7 @@ function intensity(impulse::LogitNormalImpulseResponse)
     for idx in eachindex(impulse.μ)
         μ = impulse.μ[idx]
         τ = impulse.τ[idx]
-        ir[idx] = t -> pdf(LogitNormal(μ, τ^(-1 / 2)), t ./ impulse.Δtmax)
+        ir[idx] = t -> pdf(LogitNormal(μ, τ^(-1 / 2)), t ./ impulse.Δtmax) / impulse.Δtmax
     end
     return ir
 end
@@ -174,7 +174,7 @@ end
 function intensity(impulse::LogitNormalImpulseResponse, parentnode, childnode, Δt)
     μ = impulse.μ[parentnode, childnode]
     τ = impulse.τ[parentnode, childnode]
-    return pdf(LogitNormal(μ, τ^(-1 / 2)), Δt ./ impulse.Δtmax)
+    return pdf(LogitNormal(μ, τ^(-1 / 2)), Δt ./ impulse.Δtmax) / impulse.Δtmax
 end
 
 function rand(impulse::LogitNormalImpulseResponse, n::Int64)
@@ -262,6 +262,10 @@ end
 abstract type UnivariateImpulseResponse <: ImpulseResponse end
 
 
+mutable struct UnivariateExponentialImpulseResponse end
+
+
+
 """
     UnivariateLogitNormalImpulseResponse{T<:AbstractFloat}
 
@@ -327,14 +331,14 @@ function params!(model::UnivariateLogitNormalImpulseResponse, θ)
 end
 
 function intensity(model::UnivariateLogitNormalImpulseResponse)
-    return t -> pdf(LogitNormal(model.μ, model.τ^(-1 / 2)), t ./ model.Δtmax)
+    return t -> pdf(LogitNormal(model.μ, model.τ^(-1 / 2)), t ./ model.Δtmax) / model.Δtmax
 end
 
 function intensity(model::UnivariateLogitNormalImpulseResponse, Δt)
-    return pdf(LogitNormal(model.μ, model.τ^(-1 / 2)), Δt ./ model.Δtmax)
+    return pdf(LogitNormal(model.μ, model.τ^(-1 / 2)), Δt ./ model.Δtmax) / model.Δtmax
 end
 
-function Base.rand(model::UnivariateLogitNormalImpulseResponse, n)
+function Base.rand(model::UnivariateLogitNormalImpulseResponse, n::Integer)
     σ = 1.0 / sqrt(model.τ)
     ts = rand(LogitNormal(model.μ, σ), n) .* model.Δtmax
 
@@ -344,18 +348,16 @@ end
 function resample!(model::UnivariateLogitNormalImpulseResponse, data, parents)
     n, xbar, vtot = sufficient_statistics(model, data, parents)
     if n == 0 # no child events => use priors
-        @warn "resample!: no child events found"
+        @debug "resample!: no child events found"
         model.τ = rand(Gamma(model.ατ, 1 / model.βτ))
         σ = (1.0 / (model.κμ * model.τ))^(1 / 2)
         model.μ = rand(Normal(model.μμ, σ))
     else
         α = model.ατ + n / 2
         β = vtot / 2 + n * model.κμ / (n + model.κμ) * (xbar - model.μμ)^2 / 2 # TODO: why doesn't β update involve βτ?
-        # β = isnan(β) ? model.βτ : β
         model.τ = rand(Gamma(α, 1.0 / β))
         κ = model.κμ + n
         μ = (model.κμ * model.μμ + n * xbar) / (model.κμ + n)
-        # μ = isnan(μ) ? model.μμ : μ
         σ = (1.0 / (κ * model.τ))^(1 / 2)
         model.μ = rand(Normal(μ, σ))
     end
