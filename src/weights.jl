@@ -26,7 +26,7 @@ function rand(model::Weights, row::Int64, col::Int64)
     return rand(Poisson(model.W[row, col])) # NOTE: does not account for connection indicator
 end
 
-function sufficient_statistics(model::Weights, data::Vector, parents)
+function sufficient_statistics(model::Weights, data::Tuple, parents)
     """Calculate sufficient statistics for continuous-time data."""
     _, nodes, _ = data
     _, parentnodes = parents
