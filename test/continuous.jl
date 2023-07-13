@@ -21,3 +21,9 @@ using Test
     process = ContinuousUnivariateHawkesProcess(baseline, impulse_response, weight)
 
 end
+
+@testset "ContinuousIndependentHawkesProcess" begin
+    
+
+
+end

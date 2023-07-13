@@ -650,7 +650,7 @@ function logprior(process::ContinuousUnivariateHawkesProcess)
     return ll
 end
 
-function intensity(proces::ContinuousUnivariateHawkesProcess, data, time::AbstractFloat)
+function intensity(process::ContinuousUnivariateHawkesProcess, data, time::AbstractFloat)
     events, _ = data
     idx = time - process.impulse_response.Δtmax .< events .< time
     λ = intensity(process.baseline, time)
@@ -726,7 +726,7 @@ function mle!(process::ContinuousUnivariateHawkesProcess, data; optimizer=BFGS, 
     end
 
     # TODO: the random guess and lower bounds don't seem right for all parameters, e.g. logit-normal impulse response mean can be negative, so this creates bias. More generally, we can't guaruntee these are good guesses and bounds for any model that might permit MLE estimation. (This also needs to be fixed for ContinuousStandardHawkesProcess).
-    guess = guess === nothing ? rand(length(params(process))) : guess
+    guess = guess === nothing ? _rand_init_(process) : guess
     lower = fill(1e-6, size(guess))
     upper = fill(1e1, size(guess))
     optimizer = Fminbox(optimizer())
@@ -741,6 +741,8 @@ function mle!(process::ContinuousUnivariateHawkesProcess, data; optimizer=BFGS, 
         converged ? "success" : "failure"
     )
 end
+
+_rand_init_(process::ContinuousUnivariateHawkesProcess) = rand(nparams(process))
 
 function resample!(process::ContinuousUnivariateHawkesProcess, data)
     parents = resample_parents(process, data)
@@ -760,8 +762,230 @@ abstract type ContinuousMultivariateHawkesProcess <: ContinuousHawkesProcess end
 """
     ContinuousIndependentHawkesProcess
 
-A container type for an collection of independent univariate Hawkes processes. Provides convenience functions to construct non-independent multivariate processes.
+A container type for an collection of independent univariate Hawkes processes having identical component types. Provides convenience functions to construct non-independent multivariate processes.
+
+Methods for independent processes *cannot*, in general, assume uniformity of the constituent univariate processes. For example, the default constructor does not prevent the construction of an independent process from two univariate processes with different `impulse_response` types or having the type with different fields (e.g., `Δtmax`). 
+
+# Example
+ndims = 3;
+Δtmax = 1.0;
+list = [
+    ContinuousUnivariateHawkesProcess(
+        UnivariateHomogeneousProcess(rand()),
+        UnivariateLogitNormalImpulseResponse(rand(), rand(), Δtmax),
+        UnivariateWeightModel(rand())
+    ) for _ in 1:ndims
+];
+process = ContinuousIndependentHawkesProcess(list);
 """
 struct ContinuousIndependentHawkesProcess <: ContinuousMultivariateHawkesProcess
-    processes::Vector{ContinuousUnivariateHawkesProcess}
+    list::Vector{ContinuousUnivariateHawkesProcess}
+end
+
+function ContinuousIndependentHawkesProcess(baseline, impulse_response, weight, n)
+    return ContinuousIndependentHawkesProcess(
+        [ContinuousUnivariateHawkesProcess(deepcopy(baseline), deepcopy(impulse_response), deepcopy(weight)) for _ in 1:n]
+    )
+end
+
+function ContinuousStandardHawkesProcess(process::ContinuousIndependentHawkesProcess)
+    """Assumes uniformity of the constituent processes non-trainable parameter fields."""
+    baseline = multivariate(process.list[1].baseline,
+        params.([p.baseline for p in process.list]))
+    impulse_response = multivariate(process.list[1].impulse_response,
+        params.([p.impulse_response for p in process.list]))
+    weights = multivariate(process.list[1].weight,
+        params.([p.weight for p in process.list]))
+
+    return ContinuousStandardHawkesProcess(baseline, impulse_response, weights)
+end
+
+ndims(process::ContinuousIndependentHawkesProcess) = length(process.list)
+
+isstable(process::ContinuousIndependentHawkesProcess) = all(isstable.(process.list))
+
+nparams(process::ContinuousIndependentHawkesProcess) = mapreduce(nparams, +, process.list)
+
+params(process::ContinuousIndependentHawkesProcess) = mapreduce(params, vcat, process.list)
+
+function params!(process::ContinuousIndependentHawkesProcess, x)
+    length(x) == nparams(process) || throw(ArgumentError("Length of parameter vector x ($(length(x))) should equal the number of model parameters ($nparams(process))"))
+
+    for (p, x) in zip(process.list, partition(x, process))
+        params!(p, x)
+    end
+
+    return params(process)
+end
+
+function Base.rand(process::ContinuousIndependentHawkesProcess, duration::AbstractFloat)    
+    data = [rand(p, duration) for p in process.list]
+    events = mapreduce(d -> d[1], vcat, data)
+    nodes = mapreduce(((i, d), ) -> i * ones(Int, length(d[1])), vcat, enumerate(data))
+    idx = sortperm(events)
+
+    return events[idx], nodes[idx], duration
+end
+
+function loglikelihood(process::ContinuousIndependentHawkesProcess, data; recurvise=true)
+    """Expects data to be separated by process, i.e., data = separate(data, process)."""
+    return mapreduce(((p, d), ) -> loglikelihood(p, d), +, zip(process.list, data))
+end
+
+function logprior(process::ContinuousIndependentHawkesProcess)
+    return mapreduce(p -> logprior(p), *, process.list)
+end
+
+# function intensity(process::ContinuousIndependentHawkesProcess, data, time::AbstractFloat)
+#     return [
+#         intensity(p, d, time) for (p, d) in zip(process.list, split(data, process))
+#     ]
+# end
+
+# function intensity(process::ContinuousIndependentHawkesProcess, data, times::Vector{AbstractFloat})
+#     # TODO
+
+#     return λ
+# end
+
+# function impulse_response(process::ContinuousIndependentHawkesProcess, Δt::AbstractFloat)
+#     # TODO
+
+#     return ir
+# end
+
+function mle!(process::ContinuousIndependentHawkesProcess, data; optimizer=BFGS, verbose=false, f_abstol=1e-6, regularize=false, guess=nothing, joint=false)
+    
+    data = split(data, process)
+    guess = isnothing(guess) ? _rand_init_(process) : guess # or _default_init_(process, data)
+    
+    if !joint
+        # Note: not parallelized over nodes b/c `loglikelihood` is already using all available threads (much higher benefit)
+        guesses = partition(guess, process)
+        res = [
+                mle!(p, d; 
+                    optimizer=optimizer,
+                    verbose=verbose,
+                    f_abstol=f_abstol,
+                    regularize=regularize, guess=θ) for (p, d, θ) in zip(process.list, data, guesses)
+            ]
+
+        return MaximumLikelihood(
+            reduce(vcat, [r.maximizer for r in res]),
+            reduce(+, [r.maximum for r in res]),
+            reduce(+, [r.steps for r in res]),
+            reduce(+, [r.elapsed for r in res]),
+            all(mapreduce(s -> s == "success", vcat, [r.status for r in res]))
+        )
+    else
+        # Joint optimization (this seems to be generally a slower option)
+        function objective(x)
+            params!(process, x)
+            return regularize ? -loglikelihood(process, data) - logprior(process) : -loglikelihood(process, data)
+        end
+
+        minloss = Inf
+        outer_iter = 0
+        converged = false
+        steps = 0
+
+        function status_update(o)
+            if o.iteration == 0
+                if verbose
+                    println("* iteration (n=$outer_iter)")
+                end
+                outer_iter += 1
+                minloss = Inf
+            end
+            if o.iteration % 1 == 0
+                if verbose
+                    println(" > step: $(o.iteration), loss: $(o.value), elapsed: $(o.metadata["time"])")
+                end
+            end
+            if abs(o.value - minloss) < f_abstol
+                converged = true
+                steps = o.iteration
+                println("\n* Status: f_abstol convergence criteria reached!")
+                println("    elapsed: $(o.metadata["time"])")
+                println("    final loss: $(o.value)")
+                println("    min. loss: $(minloss)")
+                println("    outer iterations: $outer_iter")
+                println("    inner iterations: $(o.iteration)\n")
+                return true
+            else
+                minloss = o.value
+            end
+            return false
+        end
+
+        lower = fill(1e-6, size(guess))
+        upper = fill(1e1, size(guess))
+        optimizer = Fminbox(optimizer())
+        options = Optim.Options(callback=status_update)
+        res = optimize(objective, lower, upper, guess, optimizer, options)
+        return MaximumLikelihood(
+            res.minimizer,
+            -res.minimum,
+            steps,
+            res.time_run,
+            converged ? "success" : "failure"
+        )
+    end
+end
+
+_rand_init_(process::ContinuousIndependentHawkesProcess) = mapreduce(_rand_init_, vcat, process.list)
+
+function resample!(process::ContinuousIndependentHawkesProcess, data)
+    """Expects data to be separated by process, i.e., data = separate(data, process)."""
+    for (p, d) in zip(process.list, data)
+        parents = resample_parents(p, d)
+        resample!(p, d, parents)
+    end
+
+    return params(process)
+end
+
+function mcmc!(process::ContinuousIndependentHawkesProcess, data; kwargs)
+    data = separate(data, process)
+
+    if Distributions.nprocs() > 1
+        res = pmap(((i, p), ) -> mcmc!(p, data[i]; kwargs...), enumerate(process.list))
+    else
+        res = MarkovChainMonteCarlo(process)
+        start_time = time()
+        while res.steps < nsteps
+            resample!(process, data)
+            push!(res.samples, params(process))
+            res.steps += 1
+            if res.steps % log_freq == 0 && verbose
+                res.elapsed = time() - start_time
+                println(" > step: $(res.steps), elapsed: $(res.elapsed)")
+            end
+        end
+        res.elapsed = time() - start_time
+        return res
+    end
+
+    return res
+end
+
+function partition(x, process)
+    """Partition a parameter vector into slices based the number of parameters in each constituent univariate process."""
+    length(x) == nparams(process) || throw(ArgumentError("Length of the parameter vector ($(length(x))) should equal the number of process parameters ($(nparams(process)))."))
+
+    partitions = []
+    idx = 1
+    for p in process.list
+        push!(partitions, x[idx:idx+nparams(p)-1])
+        idx += nparams(p)
+    end
+
+    return partitions
+end
+
+function split(data, process)
+    """Split combined data into univariate samples."""
+    events, nodes, duration = data
+
+    return [(events[nodes .== i], duration) for i = 1:ndims(process)]
 end

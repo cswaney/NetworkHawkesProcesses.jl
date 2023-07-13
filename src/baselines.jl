@@ -815,6 +815,12 @@ end
 
 UnivariateHomogeneousProcess(λ::T) where {T <: AbstractFloat} = UnivariateHomogeneousProcess{T}(λ, 1.0, 1.0)
 
+function multivariate(process::UnivariateHomogeneousProcess, params)
+    λ = cat(params...; dims=1) # params = params.([p1, p2, ...])
+
+    return HomogeneousProcess(λ)
+end
+
 nparams(process::UnivariateHomogeneousProcess) = 1
 params(process::UnivariateHomogeneousProcess) = [process.λ]
 

@@ -211,6 +211,12 @@ end
 UnivariateWeightModel(w::T, α0::T, β0::T, _α0::T, _β0::T) where {T<:AbstractFloat} = UnivariateWeightModel{T}(w, α0, β0, _α0, _β0)
 UnivariateWeightModel(w::T) where {T<:AbstractFloat} = UnivariateWeightModel{T}(w, 1.0, 1.0, 1.0, 1.0)
 
+function multivariate(model::UnivariateWeightModel, params)
+    W = Matrix(Diagonal(cat(params...; dims=1)))
+
+    return DenseWeightModel(W)
+end
+
 nparams(model::UnivariateWeightModel) = 1
 params(model::UnivariateWeightModel) = [model.w]
 

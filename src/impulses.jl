@@ -317,6 +317,13 @@ function UnivariateLogitNormalImpulseResponse(μ::T, τ::T, Δtmax::T) where {T<
     return UnivariateLogitNormalImpulseResponse{T}(μ, τ, 0.0, 1.0, 1.0, 1.0, Δtmax)
 end
 
+function multivariate(model::UnivariateLogitNormalImpulseResponse, params)
+    μ = Matrix(Diagonal([θ[1] for θ in params]))
+    τ = Matrix(Diagonal([θ[2] for θ in params]))
+
+    return LogitNormalImpulseResponse(μ, τ, model.Δtmax)
+end
+
 nparams(model::UnivariateLogitNormalImpulseResponse) = 2
 params(model::UnivariateLogitNormalImpulseResponse) = [model.μ, model.τ]
 
