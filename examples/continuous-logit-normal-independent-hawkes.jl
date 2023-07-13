@@ -1,6 +1,12 @@
 using NetworkHawkesProcesses
 using NetworkHawkesProcesses: params, params!
+using Random
+using Statistics
 
+# set random seed
+Random.seed!(0);
+
+# set hyperparameters
 duration = 1000.0;
 Δtmax = 5.0;
 ndims = 3;
@@ -31,7 +37,7 @@ res = mle!(process, data; verbose=true);
 params!(process, θ);
 
 # estimate parameters via mcmc
-res = mcmc!(process, data; verbose=true);
+res = mcmc!(process, data; verbose=true, joint=true);
 θmcmc = mean(res.samples);
 [θ θmcmc]
 
