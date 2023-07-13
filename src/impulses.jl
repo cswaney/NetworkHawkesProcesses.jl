@@ -17,7 +17,7 @@ abstract type ContinuousImpulseResponse <: ImpulseResponse end
 
 abstract type ContinuousUnivariateImpulseResponse <: ContinuousImpulseResponse end
 
-function multivariate(f::ContinuousUnivariateImpulseResponse) end
+function multivariate(f::ContinuousUnivariateImpulseResponse, params) end
 
 
 abstract type ContinuousMultivariateImpulseResponse <: ContinuousImpulseResponse end
@@ -31,6 +31,10 @@ function basis(f::DiscreteImpulseResponse) end
 
 
 abstract type DiscreteUnivariateImpulseResponse <: DiscreteImpulseResponse end
+
+function multivariate(f::DiscreteUnivariateBaseline, params) end
+
+
 abstract type DiscreteMultivariateImpulseResponse <: DiscreteImpulseResponse end
 
 
