@@ -1,4 +1,5 @@
 abstract type ImpulseResponse end
+
 import Base.rand
 import Base.size
 
@@ -8,9 +9,113 @@ function resample!(impulse::ImpulseResponse, data) end
 function intensity(impulse::ImpulseResponse) end
 function intensity(impulse::ImpulseResponse, parentnode, childnode, time) end
 
+abstract type UnivariateImpulseResponse <: ImpulseResponse end
 
 """
-ExponentialImpulseResponse
+    
+    UnivariateExponentialImpulseResponse(θ, α0, β0, Δtmax)
+    UnivariateExponentialImpulseResponse(θ)
+
+An exponential impulse response function with Gamma prior.
+
+### Details
+This model is a building block for Hawkes processes. Given a number events, it generates event times according to a exponential distribution with rate parameter `θ`.
+
+For Bayesian inference the model assumes a Gamma prior for `θ`: `θ ~ Gamma(κ, ν)`.The resulting probabilistic model is only conjugate in the limit as the sampling duration approaches infinity, however. Thus, Bayesian inference for the exponential process is approximate.
+
+### Arguments
+- `θ::{T<:AbstractFloat}`: non-negataive rate parameter of the exponential distribution (i.e., `1 / scale`)
+- `α0::{T<:AbstractFloat}`: non-negataive shape hyperparameter of the gamma prior for `θ` (default: 1.0)
+- `β0::{T<:AbstractFloat}`: non-negataive rate hyperparameter of the gamma prior for `θ` (default: 1.0)
+- `Δtmax::{T<:AbstractFloat}`: positive upperbound of the process support, `[0, Δtmax]` (default: Inf)
+```
+"""
+mutable struct UnivariateExponentialImpulseResponse{T<:AbstractFloat} <: UnivariateImpulseResponse
+    θ::T
+    α0::T
+    β0::T
+    Δtmax::T
+
+    function UnivariateExponentialImpulseResponse{T}(θ, α0, β0, Δtmax) where {T<:AbstractFloat}
+        θ > 0.0 || throw(DomainError(θ, "Rate parameter θ should be positive"))
+        α0 > 0.0 || throw(DomainError(α0, "Shape hyperparameter α should be positive"))
+        β0 > 0.0 || throw(DomainError(β0, "Rate hyperparameter β should be positive"))
+        Δtmax <= 0.0 && throw(DomainError(Δtmax, "Process support Δtmax should be positive"))
+
+        return new(θ, α0, β0, Δtmax)
+    end
+end
+
+UnivariateExponentialImpulseResponse(θ::T, α0::T, β0::T, Δtmax::T) where {T<:AbstractFloat} = UnivariateExponentialImpulseResponse{T}(θ, α0, β0, Δtmax)
+UnivariateExponentialImpulseResponse(θ::T) where {T<:AbstractFloat} = UnivariateExponentialImpulseResponse{T}(θ, 1.0, 1.0, Inf)
+
+Base.ndims(impulse::UnivariateExponentialImpulseResponse) = 1
+
+nparams(impulse::UnivariateExponentialImpulseResponse) = 1
+params(impulse::UnivariateExponentialImpulseResponse) = [impulse.θ]
+
+function params!(model::UnivariateExponentialImpulseResponse, x)
+    length(x) != nparams(model) && throw(ArgumentError("Length of parameter vector x ($(length(x))) should equal the number of model parameters ($(nparams(model)))"))
+
+    θ =  x[1]
+    θ > 0.0 || throw(DomainError(θ, "Rate parameter θ should be positive"))
+
+    model.θ = x[1]
+
+    return params(model)
+end
+
+function Base.rand(impulse::UnivariateExponentialImpulseResponse, n::Integer)
+    n < 0 && throw(ArgumentError("number of events should be non-negative"))
+
+    ts = rand(Exponential(1 / impulse.θ), n)
+    
+    return sort(ts) # NOTE: assumes infinite duration; truncate results as required
+end
+
+function resample!(impulse::UnivariateExponentialImpulseResponse, data, parents)
+    n, xtot = sufficient_statistics(impulse, data, parents)
+    α = impulse.α0 + n
+    β = impulse.β0 + xtot
+    impulse.θ = rand(Gamma(α, 1 / β))
+
+    return impulse.θ
+end
+
+function sufficient_statistics(impulse::UnivariateExponentialImpulseResponse, data, parents)
+    events, _ = data
+    parentindices, _ = parents
+    n = mapreduce(x -> x > 0, +, parentindices)
+    xtot = duration_total(events, parentindices)
+    return n, xtot
+end
+
+function duration_total(events, parentindices)
+    xbar = 0.0
+    for (event, parentindex) in zip(events, parentindices)
+        if parentindex > 0
+            parentevent = events[parentindex]
+            xbar += event - parentevent
+        end
+    end
+    return xtot
+end
+
+function intensity(impulse::UnivariateExponentialImpulseResponse)
+    return t -> pdf(Exponential(1 / impulse.θ), t)
+end
+
+function intensity(impulse::UnivariateExponentialImpulseResponse, Δt)
+    return pdf(Exponential(1 / impulse.θ), Δt)
+end
+
+function logprior(impulse::UnivariateExponentialImpulseResponse)
+    return log(pdf(Gamma(impulse.α0, 1 / impulse.β0), impulse.θ))
+end
+
+
+"""
+    ExponentialImpulseResponse
 
 An exponential impulse response function with Gamma prior.
 
@@ -259,10 +364,9 @@ function logprior(impulse::LogitNormalImpulseResponse)
 end
 
 
-abstract type UnivariateImpulseResponse <: ImpulseResponse end
 
 
-mutable struct UnivariateExponentialImpulseResponse end
+
 
 
 
