@@ -84,12 +84,12 @@ end
     @test_throws DomainError DiscreteHomogeneousProcess(ones(2), 0.0)
 
     process = DiscreteHomogeneousProcess(ones(2), 0.5)
-    @test intensity(process, 0.0:0.1:1.0) == 0.5 * ones(11, 2)
+    @test intensity(process, 0:10) == 0.5 * ones(11, 2)
     @test intensity(process, 1, 0.0) == intensity(process, 2, 0.0) == 0.5
     @test_throws DomainError intensity(process, 0, 0.0)
     @test_throws DomainError intensity(process, 3, 0.0)
     @test_throws DomainError intensity(process, 1, -1.0)
-    @test_throws DomainError intensity(process, -0.1:0.1:1.0)
+    @test_throws DomainError intensity(process, -1:10)
 
     parents = [0 0 0 1 0 1 0 0 0 1; 2 0 0 0 0 0 0 0 0 0]
     @test sufficient_statistics(process, transpose(parents)) == ([3, 2], 10)
@@ -117,7 +117,7 @@ end
     @test typeof(UnivariateHomogeneousProcess{Float32}(Float16(1), 1., 1.0)) == UnivariateHomogeneousProcess{Float32}
 
     process = UnivariateHomogeneousProcess(1.0) # UnivariateHomogeneousProcess{Floata64}
-    @test ndims(process) == 0
+    @test ndims(process) == 1
     @test params(process) == [1.0]
     @test params!(process, [2.0]) == [2.0]
     @test params!(process, 1.0) == [1.0]

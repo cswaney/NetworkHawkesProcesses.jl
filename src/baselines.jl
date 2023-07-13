@@ -1,16 +1,143 @@
+import Base.length
+import Base.range
+import Base.rand
+import Base.ndims
+
 abstract type Baseline end
 
-import Base.size
-import Base.length
-
 function ndims(process::Baseline) end
+function nparams(process::Baseline) end
 function params(process::Baseline) end
 function params!(process::Baseline, x) end
-function rand(process::Baseline, duration) end
-function resample!(process::Baseline) end
-function integrated_intensity(process::Baseline, duration) end
-function integrated_intensity(process::Baseline, node, duration) end
-function intensity(process::Baseline, node, time) end
+function intensity(process::Baseline, time::AbstractFloat) end
+function integrated_intensity(process::Baseline, duration::AbstractFloat) end
+function logprior(process::Baseline) end
+
+
+abstract type ContinuousBaseline <: Baseline end
+
+function rand(process::ContinuousBaseline, duration::AbstractFloat) end
+
+
+abstract type ContinuousUnivariateBaseline <: ContinuousBaseline end
+
+ndims(process::ContinuousUnivariateBaseline) = 1
+function multivariate(process::ContinuousUnivariateBaseline, x) end
+
+
+abstract type ContinuousMultivariateBaseline <: ContinuousBaseline end
+
+function rand(process::ContinuousMultivariateBaseline, node::Integer, duration::AbstractFloat) end
+function intensity(process::ContinuousMultivariateBaseline, node::Integer, time::AbstractFloat) end
+function integrated_intensity(process::ContinuousMultivariateBaseline, node::Integer, duration::AbstractFloat) end
+
+
+abstract type DiscreteBaseline <: Baseline end
+
+function rand(process::DiscreteBaseline, duration::Integer) end
+function intensity(process::DiscreteBaseline, times::AbstractVector{T}) where {T<:Integer} end
+
+
+abstract type DiscreteUnivariateBaseline <: DiscreteBaseline end
+
+ndims(process::DiscreteUnivariateBaseline) = 1
+function multivariate(process::DiscreteUnivariateBaseline, x) end
+
+
+abstract type DiscreteMultivariateBaseline <: DiscreteBaseline end
+
+function intensity(process::DiscreteMultivariateBaseline, node::Integer, time::AbstractFloat) end
+function integrated_intensity(process::DiscreteMultivariateBaseline, node::Integer, duration::AbstractFloat) end
+
+
+"""
+    UnivariateHomogeneousProcess
+
+A univariate homogeneous Poisson process with constant intensity λ ~ Gamma(α0, β0).
+
+# Arguments
+- `λ::T`: constant, non-negative intensity parameter.
+- `α0::T`: shape parameter of Gamma prior (default: 1.0).
+- `β0::T`: rate parameter of Gamma prior (default: 1.0).
+"""
+mutable struct UnivariateHomogeneousProcess{T <: AbstractFloat} <: ContinuousUnivariateBaseline
+    λ::T
+    α0::T
+    β0::T
+
+    function UnivariateHomogeneousProcess{T}(λ, α0, β0) where {T <: AbstractFloat}
+        λ < 0.0 && throw(DomainError(λ, "intensity parameter λ should be non-negative"))
+        α0 > 0.0 || throw(DomainError(α0, "shape parameter α0 should be positive"))
+        β0 > 0.0 || throw(DomainError(β0, "rate parameter β0 should be positive"))
+        return new(λ, α0, β0)
+    end
+end
+
+function UnivariateHomogeneousProcess(λ::T, α0::T, β0::T) where {T <: AbstractFloat}
+    return UnivariateHomogeneousProcess{T}(λ, α0, β0)
+end
+
+UnivariateHomogeneousProcess(λ::T) where {T <: AbstractFloat} = UnivariateHomogeneousProcess{T}(λ, 1.0, 1.0)
+
+function multivariate(process::UnivariateHomogeneousProcess, params)
+    λ = cat(params...; dims=1) # params = params.([p1, p2, ...])
+
+    return HomogeneousProcess(λ)
+end
+
+nparams(process::UnivariateHomogeneousProcess) = 1
+params(process::UnivariateHomogeneousProcess) = [process.λ]
+
+function params!(process::UnivariateHomogeneousProcess, θ)
+    length(θ) == 1 || throw(ArgumentError("params!: length of parameter vector θ should equal the number of model parameters"))
+    λ = θ[1]
+    λ < 0.0 && throw(DomainError(λ, "intensity parameter λ should be non-negative"))
+    process.λ = λ
+
+    return params(process)
+end
+
+function Base.rand(process::UnivariateHomogeneousProcess, duration::AbstractFloat)
+    duration < 0.0 && throw(DomainError(duration, "duration should be non-negative"))
+    n = rand(Poisson(process.λ * duration))
+    events = rand(Uniform(0, duration), n)
+
+    return events, duration
+end
+
+function resample!(process::UnivariateHomogeneousProcess, data, parents)
+    counts, duration = sufficient_statistics(process, data, parents)
+    α = process.α0 + counts
+    β = process.β0 + duration
+    process.λ = rand(Gamma(α, 1 / β))
+
+    return process.λ
+end
+
+function sufficient_statistics(process::UnivariateHomogeneousProcess, data, parents)
+    _, duration = data
+    _, parentnodes = parents
+    counts = mapreduce(x -> x == 0, +, parentnodes)
+
+    return counts, duration
+end
+
+function integrated_intensity(process::UnivariateHomogeneousProcess, duration::AbstractFloat)
+    """Calculate the integral of the intensity."""
+    duration < 0.0 && throw(DomainError("integrated_intensity: duration should be non-negative"))
+
+    return process.λ .* duration
+end
+
+function intensity(process::UnivariateHomogeneousProcess, time::AbstractFloat)
+    time < 0.0 && throw(DomainError("time should be non-negative"))
+    
+    return process.λ
+end
+
+function logprior(process::UnivariateHomogeneousProcess)
+    return log(pdf(Gamma(process.α0, 1 / process.β0), process.λ))
+end
 
 
 """
@@ -23,14 +150,14 @@ A homogeneous Poisson process with constant intensity λ ~ Gamma(α0, β0).
 - `α0`: shape parameter of Gamma prior for Bayesian inference (default: 1.0).
 - `β0`: rate parameter of Gamma prior for Bayesian inference (default: 1.0).
 """
-mutable struct HomogeneousProcess{T<:AbstractFloat} <: Baseline
+mutable struct HomogeneousProcess{T<:AbstractFloat} <: ContinuousMultivariateBaseline
     λ::Vector{T}
     α0::T
     β0::T
     function HomogeneousProcess{T}(λ, α0, β0) where T <: AbstractFloat
-        any(λ .< 0) && throw(DomainError(λ, "HomogeneousProcess: intensity parameter λ must be non-negative"))
-        α0 > 0 || throw(DomainError(α0, "HomogeneousProcess: shape parameter α0 must be positive"))
-        β0 > 0 || throw(DomainError(β0, "HomogeneousProcess: rate parameter β0 must be positive"))
+        any(λ .< 0) && throw(DomainError(λ, "intensity parameter λ must be non-negative"))
+        α0 > 0 || throw(DomainError(α0, "shape parameter α0 must be positive"))
+        β0 > 0 || throw(DomainError(β0, "rate parameter β0 must be positive"))
         return new(λ, α0, β0)
     end
 end
@@ -39,6 +166,7 @@ HomogeneousProcess(λ::Vector{T}, α0::T, β0::T) where {T<:AbstractFloat} = Hom
 HomogeneousProcess(λ::Vector{T}) where {T<:AbstractFloat} = HomogeneousProcess{T}(λ, 1.0, 1.0)
 
 ndims(process::HomogeneousProcess) = length(process.λ)
+nparams(process::HomogeneousProcess) = length(process.λ)
 params(process::HomogeneousProcess) = copy(process.λ)
 
 function params!(process::HomogeneousProcess, x)
@@ -66,7 +194,7 @@ p = HomogeneousProcess(ones(2))
 events, nodes, duration = rand(p, 100.0)
 ````
 """
-function Base.rand(process::HomogeneousProcess, duration)
+function Base.rand(process::HomogeneousProcess, duration::AbstractFloat)
     duration < 0.0 && throw(DomainError("Sampling duration must be non-negative ($(duration))"))
     nnodes = ndims(process)
     events = Array{Array{Float64,1},1}(undef, nnodes)
@@ -94,7 +222,7 @@ Sample a random sequence of events from a single node of a homogeneous Poisson p
 # Returns
 - `data::Vector{Float64}`: sampled events data.
 """
-function rand(process::HomogeneousProcess, node, duration)
+function rand(process::HomogeneousProcess, node::Integer, duration::AbstractFloat)
     duration < 0.0 && throw(DomainError("Sampling duration must be non-negative ($(duration))"))
     n = rand(Poisson(process.λ[node] * duration))
     return sort(rand(Uniform(0, duration), n))
@@ -126,24 +254,24 @@ function node_counts(nodes, parentnodes, nnodes)
     return counts
 end
 
-function integrated_intensity(process::HomogeneousProcess, duration)
+function integrated_intensity(process::HomogeneousProcess, duration::AbstractFloat)
     """Calculate the integral of the intensity."""
     duration < 0 && throw(DomainError("duration must be non-negative"))
     return process.λ .* duration
 end
 
-function integrated_intensity(process::HomogeneousProcess, node, duration)
+function integrated_intensity(process::HomogeneousProcess, node::Integer, duration::AbstractFloat)
     """Calculate the integral of the intensity on a single node."""
     duration < 0 && throw(DomainError("duration must be non-negative"))
     return process.λ[node] .* duration
 end
 
-function intensity(process::HomogeneousProcess, time::Float64)
+function intensity(process::HomogeneousProcess, time::AbstractFloat)
     time < 0 && throw(DomainError("time must be non-negative"))
     return process.λ
 end
 
-function intensity(process::HomogeneousProcess, node::Int64, time::Float64)
+function intensity(process::HomogeneousProcess, node::Integer, time::AbstractFloat)
     time < 0 && throw(DomainError("time must be non-negative"))
     return process.λ[node]
 end
@@ -178,7 +306,7 @@ The process is sampled by interpolating between intensity values `λ[1], ..., λ
 - `Σ::PDMat{T<:AbstractFloat}`: a positive-definite variance matrix.
 - `m::Vector{T<:AbstractFloat}`: intensity offsets equal to `log(λ0)` of homogeneous processes.
 """
-struct LogGaussianCoxProcess{T<:AbstractFloat} <: Baseline
+struct LogGaussianCoxProcess{T<:AbstractFloat} <: ContinuousMultivariateBaseline
     x::Vector{T}
     λ::Vector{Vector{T}}
     Σ::PDMat{T}
@@ -214,6 +342,7 @@ end
 
 ndims(process::LogGaussianCoxProcess) = length(process.λ)
 length(process::LogGaussianCoxProcess) = process.x[end]
+nparams(process::LogGaussianCoxProcess) = mapreduce(length, +, process.λ)
 params(process::LogGaussianCoxProcess) = vcat(process.λ...)
 nparams(process::LogGaussianCoxProcess) = sum(length.(process.λ))
 
@@ -252,7 +381,7 @@ y = rand(gp, x)
 p = LogGaussianCoxProcess(x, λ, kernel, 0.0)
 events, nodes, duration = rand(p, 10.0)
 """
-function Base.rand(process::LogGaussianCoxProcess, duration)
+function Base.rand(process::LogGaussianCoxProcess, duration::AbstractFloat)
     length(process) != duration && throw(ArgumentError("Sample duration does not match process duration."))
     nnodes = ndims(process)
     events = Array{Array{Float64,1},1}(undef, nnodes)
@@ -280,7 +409,7 @@ Sample a random sequence of events from a single node of a log Gaussian Cox proc
 # Returns
 - `data::Vector{Float64}`: sampled events data.
 """
-function Base.rand(process::LogGaussianCoxProcess, node, duration)
+function Base.rand(process::LogGaussianCoxProcess, node::Integer, duration::AbstractFloat)
     length(process) != duration && throw(ArgumentError("Sample duration does not match process duration."))
     f = LinearInterpolator(process.x, process.λ[node])
     return rejection_sample(f, rand(Poisson(integrate(f))))
@@ -402,18 +531,21 @@ function elliptical_slice(process::LogGaussianCoxProcess, data, node, y; max_att
     error("Elliptical slice sampling reached maximum attempts.")
 end
 
-function intensity(p::LogGaussianCoxProcess, time::Float64)
+function intensity(p::LogGaussianCoxProcess, time::AbstractFloat)
     return [LinearInterpolator(p.x, p.λ[n])(time) for n in 1:ndims(p)]
 end
 
-function intensity(p::LogGaussianCoxProcess, node::Int64, time::Float64)
+function intensity(p::LogGaussianCoxProcess, node::Integer, time::AbstractFloat)
     return LinearInterpolator(p.x, p.λ[node])(time)
 end
 
-integrated_intensity(p::LogGaussianCoxProcess, duration) = integrate.([LinearInterpolator(p.x, p.λ[k]) for k in 1:ndims(p)])
+integrated_intensity(p::LogGaussianCoxProcess, duration::AbstractFloat) = integrate.([LinearInterpolator(p.x, p.λ[k]) for k in 1:ndims(p)])
 
 
-abstract type DiscreteBaseline end
+"""
+    DiscreteUnivariateHomogeneousProcess
+"""
+mutable struct DiscreteUnivariateHomogeneousProcess <: DiscreteUnivariateBaseline end
 
 
 """
@@ -432,7 +564,7 @@ The model supports Bayesian inference of the probabilistic model:
 - `β0::Float64`: the inverse-scale (i.e., rate) parameter of the Gamma prior.
 - `dt::Float64`: the physical time represented by each time step, `t`.
 """
-mutable struct DiscreteHomogeneousProcess{T<:AbstractFloat} <: DiscreteBaseline
+mutable struct DiscreteHomogeneousProcess{T<:AbstractFloat} <: DiscreteMultivariateBaseline
     λ::Vector{T}
     α0::T
     β0::T
@@ -477,7 +609,7 @@ end
 variational_params(p::DiscreteHomogeneousProcess) = [copy(p.αv); copy(p.βv)]
 
 """
-    rand(process::DiscreteHomogeneousProcess, T::Signed)
+    rand(process::DiscreteHomogeneousProcess, T::Integer)
 
 Sample a random sequence of events from a discrete homogeneous Poisson process.
 
@@ -498,12 +630,18 @@ function Base.rand(p::DiscreteHomogeneousProcess, T::Integer)
     return vcat(transpose(rand.(Poisson.(p.λ .* p.dt), T))...)
 end
 
-function intensity(p::DiscreteHomogeneousProcess, ts)
-    any(ts .< 0.0) && throw(DomainError(ts, "Times must be non-negative"))
+function intensity(p::DiscreteHomogeneousProcess, t::AbstractFloat)
+    t < 0.0 && throw(DomainError(t, "time should be non-negative"))
+    
+    return p.λ
+end
+
+function intensity(p::DiscreteHomogeneousProcess, ts::AbstractVector{T}) where {T<:Integer}
+    any(ts .< 0) && throw(DomainError(ts, "Times must be non-negative"))
     Matrix(transpose(repeat(p.λ, 1, length(ts)))) .* p.dt
 end
 
-function intensity(p::DiscreteHomogeneousProcess, node, time)
+function intensity(p::DiscreteHomogeneousProcess, node::Integer, time::AbstractFloat)
     (node < 1 || node > ndims(p)) && throw(DomainError(node, "Nodes must be between one and ndims"))
     time < 0.0 && throw(DomainError(time, "Time must be non-negative"))
     p.λ[node] .* p.dt
@@ -523,16 +661,16 @@ function sufficient_statistics(p::DiscreteHomogeneousProcess, data)
     return vec(Mn), T
 end
 
-function integrated_intensity(process::DiscreteHomogeneousProcess, duration)
+function integrated_intensity(process::DiscreteHomogeneousProcess, duration::AbstractFloat)
     """Calculate the integral of the intensity."""
-    duration < 0.0 && throw(DomainError(duration, "intensity: duration must be non-negative"))
+    duration < 0.0 && throw(DomainError(duration, "duration must be non-negative"))
     return process.λ .* process.dt .* duration
 end
 
-function integrated_intensity(process::DiscreteHomogeneousProcess, node, duration)
+function integrated_intensity(process::DiscreteHomogeneousProcess, node::Integer, duration::AbstractFloat)
     """Calculate the integral of the intensity on a single node."""
-    (node < 1 || node > ndims(process)) && throw(DomainError(node, "intensity: node must be between one and ndims"))
-    duration < 0.0 && throw(DomainError(duration, "intensity: duration must be non-negative"))
+    (node < 1 || node > ndims(process)) && throw(DomainError(node, "node must be between one and ndims"))
+    duration < 0.0 && throw(DomainError(duration, "duration must be non-negative"))
     return process.λ[node] * process.dt * duration
 end
 
@@ -582,7 +720,7 @@ The process is sampled by interpolating between intensity values `λ[1], ..., λ
 - `Σ::Matrix{Float64}`: a positive-definite variance matrix.
 - `m::Float64`: intensity offset equal to `log(λ0)` of a homogeneous process.
 """
-mutable struct DiscreteLogGaussianCoxProcess <: DiscreteBaseline
+mutable struct DiscreteLogGaussianCoxProcess <: DiscreteMultivariateBaseline
     x::Vector{Float64}
     λ::Matrix{Float64}
     Σ::Matrix{Float64}
@@ -604,7 +742,7 @@ function DiscreteLogGaussianCoxProcess(gp::GaussianProcess, m, T, n, k, dt)
     return DiscreteLogGaussianCoxProcess(x, λ, Σ, m, dt)
 end
 
-import Base.range
+
 ndims(p::DiscreteLogGaussianCoxProcess) = size(p.λ)[2]
 range(p::DiscreteLogGaussianCoxProcess) = p.x[1]:p.dt:(p.x[end] - p.dt)
 nsteps(p::DiscreteLogGaussianCoxProcess) = length(range(p))
@@ -619,7 +757,7 @@ function params!(process::DiscreteLogGaussianCoxProcess, x)
     end
 end
 
-function Base.rand(p::DiscreteLogGaussianCoxProcess, T::Int64)
+function Base.rand(p::DiscreteLogGaussianCoxProcess, T::Integer)
     T == nsteps(p) || error("Sample length does not match process duration.")
     ts = range(p)
     K = ndims(p)
@@ -627,15 +765,15 @@ function Base.rand(p::DiscreteLogGaussianCoxProcess, T::Int64)
     return Matrix(rand.(Poisson.(λ))')
 end
 
-function intensity(p::DiscreteLogGaussianCoxProcess, time::Float64)
+function intensity(p::DiscreteLogGaussianCoxProcess, time::AbstractFloat)
     return [LinearInterpolator(p.x, p.λ[:, n] * p.dt)(time) for n in 1:ndims(p)]
 end
 
-function intensity(p::DiscreteLogGaussianCoxProcess, node::Int64, time::Float64)
+function intensity(p::DiscreteLogGaussianCoxProcess, node::Integer, time::AbstractFloat)
     return LinearInterpolator(p.x, p.λ[:, node] * p.dt)(time)
 end
 
-function intensity(p::DiscreteLogGaussianCoxProcess, times)
+function intensity(p::DiscreteLogGaussianCoxProcess, times::AbstractVector{T}) where {T<:Integer}
     λ = zeros(length(times), ndims(p))
     for n in 1:ndims(p)
         λ[:, n] = LinearInterpolator(p.x, p.λ[:, n] * p.dt).(times)
@@ -777,100 +915,4 @@ function elliptical_slice(process, data, node, y; max_attempts=100)
         end
     end
     error("Elliptical slice sampling reached maximum attempts.")
-end
-
-
-
-
-abstract type UnivariateBaseline end
-
-Base.ndims(process::UnivariateBaseline) = 0
-
-"""
-    UnivariateHomogeneousProcess
-
-A univariate homogeneous Poisson process with constant intensity λ ~ Gamma(α0, β0).
-
-# Arguments
-- `λ::T`: constant, non-negative intensity parameter.
-- `α0::T`: shape parameter of Gamma prior (default: 1.0).
-- `β0::T`: rate parameter of Gamma prior (default: 1.0).
-"""
-mutable struct UnivariateHomogeneousProcess{T <: AbstractFloat} <: UnivariateBaseline
-    λ::T
-    α0::T
-    β0::T
-
-    function UnivariateHomogeneousProcess{T}(λ, α0, β0) where {T <: AbstractFloat}
-        λ < 0.0 && throw(DomainError(λ, "UnivariateHomogeneousProcess: intensity parameter λ should be non-negative"))
-        α0 > 0.0 || throw(DomainError(α0, "UnivariateHomogeneousProcess: shape parameter α0 should be positive"))
-        β0 > 0.0 || throw(DomainError(β0, "UnivariateHomogeneousProcess: rate parameter β0 should be positive"))
-        return new(λ, α0, β0)
-    end
-end
-
-function UnivariateHomogeneousProcess(λ::T, α0::T, β0::T) where {T <: AbstractFloat}
-    return UnivariateHomogeneousProcess{T}(λ, α0, β0)
-end
-
-UnivariateHomogeneousProcess(λ::T) where {T <: AbstractFloat} = UnivariateHomogeneousProcess{T}(λ, 1.0, 1.0)
-
-function multivariate(process::UnivariateHomogeneousProcess, params)
-    λ = cat(params...; dims=1) # params = params.([p1, p2, ...])
-
-    return HomogeneousProcess(λ)
-end
-
-nparams(process::UnivariateHomogeneousProcess) = 1
-params(process::UnivariateHomogeneousProcess) = [process.λ]
-
-function params!(process::UnivariateHomogeneousProcess, θ)
-    length(θ) == 1 || throw(ArgumentError("params!: length of parameter vector θ should equal the number of model parameters"))
-    λ = θ[1]
-    λ < 0.0 && throw(DomainError(λ, "UnivariateHomogeneousProcess: intensity parameter λ should be non-negative"))
-    process.λ = λ
-
-    return params(process)
-end
-
-function Base.rand(process::UnivariateHomogeneousProcess, duration)
-    duration < 0.0 && throw(DomainError("rand: duration should be non-negative"))
-    n = rand(Poisson(process.λ * duration))
-    events = rand(Uniform(0, duration), n)
-
-    return events, duration
-end
-
-function resample!(process::UnivariateHomogeneousProcess, data, parents)
-    counts, duration = sufficient_statistics(process, data, parents)
-    α = process.α0 + counts
-    β = process.β0 + duration
-    process.λ = rand(Gamma(α, 1 / β))
-
-    return process.λ
-end
-
-function sufficient_statistics(process::UnivariateHomogeneousProcess, data, parents)
-    _, duration = data
-    _, parentnodes = parents
-    counts = mapreduce(x -> x == 0, +, parentnodes)
-
-    return counts, duration
-end
-
-function integrated_intensity(process::UnivariateHomogeneousProcess, duration)
-    """Calculate the integral of the intensity."""
-    duration < 0.0 && throw(DomainError("integrated_intensity: duration should be non-negative"))
-
-    return process.λ .* duration
-end
-
-function intensity(process::UnivariateHomogeneousProcess, time)
-    time < 0.0 && throw(DomainError("intensity: time should be non-negative"))
-    
-    return process.λ
-end
-
-function logprior(process::UnivariateHomogeneousProcess)
-    return log(pdf(Gamma(process.α0, 1 / process.β0), process.λ))
 end
