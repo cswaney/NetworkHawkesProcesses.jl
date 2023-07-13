@@ -229,7 +229,7 @@ function params!(model::UnivariateWeightModel, θ)
     return params(model)
 end
 
-function resample!(model, data, parents)
+function resample!(model::UnivariateWeightModel, data, parents)
     ntotal, nchild = sufficient_statistics(model, data, parents)
     α = model.α0 + nchild
     β = model.β0 + ntotal
