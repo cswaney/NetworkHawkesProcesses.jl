@@ -91,11 +91,11 @@ function sufficient_statistics(impulse::UnivariateExponentialImpulseResponse, da
 end
 
 function duration_total(events, parentindices)
-    xbar = 0.0
+    xtot = 0.0
     for (event, parentindex) in zip(events, parentindices)
         if parentindex > 0
             parentevent = events[parentindex]
-            xbar += event - parentevent
+            xtot += event - parentevent
         end
     end
     return xtot
