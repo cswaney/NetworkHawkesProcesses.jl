@@ -63,7 +63,8 @@ println("Process is stable? $(isstable(process))")
 θ = copy(params(process));
 
 # generate random data
-data = NetworkHawkesProcesses.rand(process, duration);
+events, duration = data
+data = (events, ones(Int, length(events)), duration)
 println("Generated $(length(data[1])) events")
 
 # estimate parameters via mle
