@@ -49,6 +49,12 @@ end
 UnivariateExponentialImpulseResponse(θ::T, α0::T, β0::T, Δtmax::T) where {T<:AbstractFloat} = UnivariateExponentialImpulseResponse{T}(θ, α0, β0, Δtmax)
 UnivariateExponentialImpulseResponse(θ::T) where {T<:AbstractFloat} = UnivariateExponentialImpulseResponse{T}(θ, 1.0, 1.0, Inf)
 
+function multivariate(model::UnivariateExponentialImpulseResponse, params)
+    θ = Matrix(Diagonal([x[1] for x in params]))
+
+    return ExponentialImpulseResponse(θ, 1.0, 1.0, model.Δtmax)
+end
+
 Base.ndims(impulse::UnivariateExponentialImpulseResponse) = 1
 
 nparams(impulse::UnivariateExponentialImpulseResponse) = 1
