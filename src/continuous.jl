@@ -50,7 +50,7 @@ A continuous Hawkes processes composed of univariate component models.
 """
 mutable struct ContinuousUnivariateHawkesProcess <: ContinuousHawkesProcess
     baseline::UnivariateBaseline
-    impulse_response::UnivariateImpulseResponse
+    impulse_response::ContinuousUnivariateImpulseResponse
     weight::UnivariateWeightModel
 end
 
@@ -355,7 +355,7 @@ Equivalent to a continuous network Hawkes process with a fully-connected network
 """
 struct ContinuousStandardHawkesProcess <: ContinuousMultivariateHawkesProcess
     baseline::Baseline
-    impulses::ImpulseResponse
+    impulses::ContinuousMultivariateImpulseResponse
     weights::Weights
 end
 
@@ -559,7 +559,7 @@ Network Hawkes processes allow for partially-connected networks. The binary `adj
 """
 struct ContinuousNetworkHawkesProcess <: ContinuousMultivariateHawkesProcess
     baseline::Baseline
-    impulses::ImpulseResponse
+    impulses::ContinuousMultivariateImpulseResponse
     weights::Weights
     adjacency_matrix::Matrix
     network::Network
