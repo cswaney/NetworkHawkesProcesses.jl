@@ -4,7 +4,6 @@ import Base.ndims
 
 abstract type ImpulseResponse end
 
-function size(f::ImpulseResponse) end # TODO: replace with ndims everywhere?
 function ndims(f::ImpulseResponse) end
 function nparams(f::ImpulseResponse) end
 function params(f::ImpulseResponse) end
@@ -320,7 +319,7 @@ end
 
 ExponentialImpulseResponse(θ) = ExponentialImpulseResponse(θ, 1.0, 1.0, Inf)
 
-size(impulse::ExponentialImpulseResponse) = size(impulse.θ)[1]
+ndims(impulse::ExponentialImpulseResponse) = size(impulse.θ, 1)
 
 params(impulse::ExponentialImpulseResponse) = copy(vec(impulse.θ))
 
@@ -328,7 +327,7 @@ function params!(impulse::ExponentialImpulseResponse, x)
     if length(x) != length(impulse.θ)
         error("Parameter vector length does not match model parameter length.")
     else
-        nnodes = size(impulse)
+        nnodes = ndims(impulse)
         impulse.θ = reshape(x, nnodes, nnodes)
     end
     return nothing
@@ -357,7 +356,7 @@ function resample!(impulse::ExponentialImpulseResponse, data, parents)
 end
 
 function sufficient_statistics(impulse::ExponentialImpulseResponse, data, parents)
-    nnodes = size(impulse)
+    nnodes = ndims(impulse)
     events, nodes, _ = data
     parentindices, parentnodes = parents
     Mnm = parent_counts(nodes, parentnodes, nnodes)
@@ -431,7 +430,7 @@ end
 
 LogitNormalImpulseResponse(μ, τ, Δtmax) = LogitNormalImpulseResponse(μ, τ, 1.0, 1.0, 1.0, 1.0, Δtmax)
 
-size(impulse::LogitNormalImpulseResponse) = size(impulse.μ)[1]
+ndims(impulse::LogitNormalImpulseResponse) = size(impulse.μ, 1)
 
 params(impulse::LogitNormalImpulseResponse) = [vec(impulse.μ); vec(impulse.τ)]
 
@@ -439,7 +438,7 @@ function params!(impulse::LogitNormalImpulseResponse, x)
     if length(x) != length(impulse.μ) + length(impulse.τ)
         error("Parameter vector length does not match model parameter length.")
     else
-        nnodes = size(impulse)
+        nnodes = ndims(impulse)
         impulse.μ = reshape(x[1:length(impulse.μ)], nnodes, nnodes)
         impulse.τ = reshape(x[(length(impulse.μ)+1):end], nnodes, nnodes)
     end
@@ -498,7 +497,7 @@ function resample!(impulse::LogitNormalImpulseResponse, data, parents)
 end
 
 function sufficient_statistics(impulse::LogitNormalImpulseResponse, data, parents)
-    nnodes = size(impulse)
+    nnodes = ndims(impulse)
     Δtmax = impulse.Δtmax
     events, nodes, _ = data
     parentindices, parentnodes = parents
@@ -566,8 +565,8 @@ function DiscreteGaussianImpulseResponse(θ, nlags, dt=1.0)
     return impulse
 end
 
-ndims(impulse::DiscreteGaussianImpulseResponse) = size(impulse.θ)[1]
-nbasis(impulse::DiscreteGaussianImpulseResponse) = size(impulse.θ)[3]
+ndims(impulse::DiscreteGaussianImpulseResponse) = size(impulse.θ, 1)
+nbasis(impulse::DiscreteGaussianImpulseResponse) = size(impulse.θ, 3)
 nlags(impulse::DiscreteGaussianImpulseResponse) = impulse.nlags
 nparams(impulse::DiscreteGaussianImpulseResponse) = prod(size(impulse.θ))
 
