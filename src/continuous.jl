@@ -957,26 +957,32 @@ end
 
 _rand_init_(process::ContinuousIndependentHawkesProcess) = mapreduce(_rand_init_, vcat, process.list)
 
-function resample!(process::ContinuousIndependentHawkesProcess, data)
-    """Expects data to be separated by process, i.e., data = separate(data, process)."""
-    for (p, d) in zip(process.list, data)
-        parents = resample_parents(p, d)
-        resample!(p, d, parents)
+function resample!(process::ContinuousIndependentHawkesProcess, splits)
+    """Expects data to be separated by process, i.e., splits = separate(data, process)."""
+    for (p, d) in zip(process.list, splits)
+        resample!(p, d)
     end
 
     return params(process)
 end
 
-function mcmc!(process::ContinuousIndependentHawkesProcess, data; kwargs)
-    data = separate(data, process)
+function mcmc!(process::ContinuousIndependentHawkesProcess, data; nsteps=1000, log_freq=100, verbose=false, joint=false)
 
-    if Distributions.nprocs() > 1
-        res = pmap(((i, p), ) -> mcmc!(p, data[i]; kwargs...), enumerate(process.list))
+    splits = split(data, process)
+
+    if !joint
+        kwargs = Dict(
+            :nsteps => nsteps,
+            :log_freq => log_freq,
+            :verbose => verbose
+            )
+        res =  [mcmc!(p, d; kwargs...) for (p, d) in zip(process.list, splits)]
+        # TODO: combine results...
     else
-        res = MarkovChainMonteCarlo(process)
         start_time = time()
+        res = MarkovChainMonteCarlo(process)
         while res.steps < nsteps
-            resample!(process, data)
+            resample!(process, splits)
             push!(res.samples, params(process))
             res.steps += 1
             if res.steps % log_freq == 0 && verbose
@@ -985,7 +991,6 @@ function mcmc!(process::ContinuousIndependentHawkesProcess, data; kwargs)
             end
         end
         res.elapsed = time() - start_time
-        return res
     end
 
     return res
