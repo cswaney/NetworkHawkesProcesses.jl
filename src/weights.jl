@@ -296,7 +296,7 @@ end
 
 function SpikeAndSlabWeightModel(W::Matrix{T}, κ0::T, ν0::T, κ1::T, ν1::T,
     κv0::Matrix{T}, vv0::Matrix{T}, κv1::Matrix{T}, vv1::Matrix{T},
-    ρv::Matri{T}) where {T<:AbstractFloat}
+    ρv::Matrix{T}) where {T<:AbstractFloat}
     
     return SpikeAndSlabWeightModel{T}(W, κ0, ν0, κ1, ν1, κv0, vv0, κv1, vv1, ρv)
 end
