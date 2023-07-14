@@ -86,7 +86,7 @@ end
 
 function _generate_children!_(events, parentevent, process::ContinuousUnivariateHawkesProcess, duration)
     t0 = parentevent
-    nchildren = rand(Poisson(process.weight.w))
+    nchildren = rand(process.weight)
     childevents = t0 .+ rand(process.impulse_response, nchildren)
     append!(events, truncate(childevents, duration))
     for event in childevents
