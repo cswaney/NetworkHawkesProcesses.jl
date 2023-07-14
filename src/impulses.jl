@@ -32,7 +32,7 @@ function basis(f::DiscreteImpulseResponse) end
 
 abstract type DiscreteUnivariateImpulseResponse <: DiscreteImpulseResponse end
 
-function multivariate(f::DiscreteUnivariateBaseline, params) end
+function multivariate(f::DiscreteUnivariateImpulseResponse, params) end
 
 
 abstract type DiscreteMultivariateImpulseResponse <: DiscreteImpulseResponse end
