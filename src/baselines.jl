@@ -342,9 +342,8 @@ end
 
 ndims(process::LogGaussianCoxProcess) = length(process.λ)
 length(process::LogGaussianCoxProcess) = process.x[end]
-nparams(process::LogGaussianCoxProcess) = mapreduce(length, +, process.λ)
-params(process::LogGaussianCoxProcess) = vcat(process.λ...)
 nparams(process::LogGaussianCoxProcess) = sum(length.(process.λ))
+params(process::LogGaussianCoxProcess) = vcat(process.λ...)
 
 function params!(process::LogGaussianCoxProcess, x)
     if length(x) != sum(length.(process.λ))
