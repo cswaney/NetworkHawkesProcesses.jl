@@ -9,6 +9,7 @@ function nparams(f::ImpulseResponse) end
 function params(f::ImpulseResponse) end
 function params!(f::ImpulseResponse) end
 function rand(f::ImpulseResponse, n::Integer) end
+function intensity(f::ImpulseResponse) end
 function intensity(f::ImpulseResponse, Δt::AbstractFloat) end # TODO: replace intensity(f) everywhere?
 function logprior(f::ImpulseResponse) end
 
@@ -29,10 +30,104 @@ abstract type DiscreteImpulseResponse <: ImpulseResponse end
 
 function basis(f::DiscreteImpulseResponse) end
 
-
 abstract type DiscreteUnivariateImpulseResponse <: DiscreteImpulseResponse end
 
+ndims(impulse::DiscreteUnivariateImpulseResponse) = 1
+
 function multivariate(f::DiscreteUnivariateImpulseResponse, params) end
+
+
+"""
+    UnivariateGaussianImpulseResponse(θ, γ, γv, nlags, dt, λ)
+    UnivariateGaussianImpulseResponse(θ, nlags, [dt])
+
+### Arguments
+- `θ::Vector{AbstractFloat}`: basis weight parameters
+- `γ::AbstractFloat`: shared, non-negative concentration hyperparameter
+- `γv::AbstractFloat`: non-negative concentration variational parameters
+"""
+mutable struct UnivariateGaussianImpulseResponse{T<:AbstractFloat} <: DiscreteUnivariateImpulseResponse
+    θ::Vector{T} # nbasis
+    γ::T
+    γv::Vector{T}
+    nlags::Int64
+    dt::T
+    ħ::Union{Vector{T},Nothing} # nlags x nbasis
+
+    function UnivariateGaussianImpulseResponse{T}(θ, γ, γv, nlags, dt, ħ) where {T<:AbstractFloat}
+        sum(θ) == 1.0 || throw(DomainError(θ, "basis weights θ should sum to 1.0 (sum=$(sum(θ)))"))
+        (any(θ .< 0.0) || any(θ .> 1.0)) && throw(DomainError(θ, "basis weights θ should be between 0.0 and 1.0"))
+        γ > 0.0 || throw(DomainError(γ, "concentration parameter γ should be non-negataive"))
+        all(γv .> 0.0) || throw(DomainError(γv, "variational concentration parameters γv should be non-negataive"))
+        nlags > 0 || throw(DomainError(nlags, "number of lags should be a positive Integer"))
+        dt > 0.0 || throw(DomainError(dt, "time step should be a positive number"))
+
+        impulse = new(θ, γ, γv, nlags, dt, nothing)
+        impulse.ħ = intensity(impulse)
+        
+        return impulse
+    end
+end
+
+function UnivariateGaussianImpulseResponse(θ::Vector{T}, γ::T, γv::Vector{T}, nlags::Integer, dt::T, ħ::Union{Vector{T},Nothing}) where {T<:AbstractFloat}
+    return UnivariateGaussianImpulseResponse{T}(θ, γ, γv, nlags, dt, ħ)
+end
+
+function UnivariateGaussianImpulseResponse(θ::Vector{T}, nlags::Integer, dt=1.0) where {T<:AbstractFloat}
+    return UnivariateGaussianImpulseResponse{T}(θ, 1.0, ones(size(θ)), nlags, dt, nothing)
+end
+
+nbasis(impulse::UnivariateGaussianImpulseResponse) = length(impulse.θ)
+nlags(impulse::UnivariateGaussianImpulseResponse) = impulse.nlags
+nparams(impulse::UnivariateGaussianImpulseResponse) = length(impulse.θ)
+params(impulse::UnivariateGaussianImpulseResponse) = copy(impulse.θ)
+
+function params!(impulse::UnivariateGaussianImpulseResponse, θ)
+    length(θ) == nparams(impulse) || throw(ArgumentError("length of parameter vector θ ($(length(θ))) should equal the number of model parameters ($(nparams(impulse)))"))
+    isapprox(sum(θ), 1.0) || throw(DomainError(θ, "basis weights θ should sum to 1.0 (sum=$(sum(θ)))"))
+    (any(θ .< 0.0) || any(θ .> 1.0)) && throw(DomainError(θ, "basis weights θ should be between 0.0 and 1.0"))
+    impulse.θ .= θ
+
+    return params(impulse)
+end
+
+function intensity(impulse::UnivariateGaussianImpulseResponse)
+    !isnothing(impulse.ħ) && return impulse.ħ
+
+    return hcat(basis(impulse)...) * impulse.θ
+end
+
+function basis(f::UnivariateGaussianImpulseResponse)
+    L = nlags(f)
+    B = nbasis(f)
+    σ = L / (B - 1)
+    if B < L
+        μ = Array(LinRange(1, L, B + 2)[2:end-1]) # [x --- o --- o --- x]
+    else
+        μ = Array(LinRange(1, L, B)) # [o --- o --- o --- o]
+    end
+    lags = Array(1:L)
+    ϕ = exp.(-1 / 2 * σ^-1 / 2 .* (lags .- transpose(μ)) .^ 2)
+    return [ϕ[:, b] ./ (sum(ϕ[:, b]) .* f.dt) for b = 1:B]
+end
+
+function resample!(impulse::UnivariateGaussianImpulseResponse, parents)
+    parentcounts = vec(sum(parents; dims=1))
+    γ = impulse.γ .+ parentcounts[2:end]
+    impulse.θ = rand(Dirichlet(γ))
+
+    return params(impulse)
+end
+
+function variational_params(f::UnivariateGaussianImpulseResponse)
+    return copy(f.γv)
+end
+
+function update!(f::UnivariateGaussianImpulseResponse) end
+
+function variational_log_expectation(f::UnivariateGaussianImpulseResponse) end
+
+function q(f::UnivariateGaussianImpulseResponse) end
 
 
 abstract type DiscreteMultivariateImpulseResponse <: DiscreteImpulseResponse end
@@ -547,7 +642,7 @@ end
 
 
 """
-DiscreteGaussianImpulseResponse <: DiscreteImpulseResponse
+    DiscreteGaussianImpulseResponse
 
 If there are fewer basis functions than lags, then the means are evenly spaced between the endpoints of `[1, L]` such that the distance to the nearest mean or endpoint is the same everywhere. As a result, you can only have a means located at the endpoints if the number of basis functions is at least as great as the number of lags.
 """
@@ -631,7 +726,8 @@ function resample!(impulse::DiscreteGaussianImpulseResponse, parents)
     end
     θ = rand.(Dirichlet.(γ))
     impulse.θ = reshape(transpose(cat(θ..., dims=2)), (N, N, B))
-    return copy(impulse.θ)
+
+    return params(impulse)
 end
 
 function update!(impulse::DiscreteGaussianImpulseResponse, data, parents)

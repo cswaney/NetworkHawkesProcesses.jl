@@ -2,6 +2,34 @@ using NetworkHawkesProcesses
 using Distributions
 using Test
 
+@testset "UnivariateGaussianImpulseResponse" begin
+
+    @test_throws DomainError UnivariateGaussianImpulseResponse([0.1, 0.1, 0.1], 4, 1.0)
+    @test_throws DomainError UnivariateGaussianImpulseResponse([0.5, 0.6, -0.1], 4, 1.0)
+    @test_throws DomainError UnivariateGaussianImpulseResponse([1.1, 0.0, -0.1], 4, 1.0)
+    @test_throws DomainError UnivariateGaussianImpulseResponse(ones(3) / 3, -1.0, ones(3), 4, 1.0, nothing)
+    @test_throws DomainError UnivariateGaussianImpulseResponse(ones(3) / 3, 1.0, -ones(3), 4, 1.0, nothing)
+    @test_throws DomainError UnivariateGaussianImpulseResponse(ones(3) / 3, 1.0, ones(3), 0, 1.0, nothing)
+    @test_throws DomainError UnivariateGaussianImpulseResponse(ones(3) / 3, 1.0, ones(3), 1, 0.0, nothing)
+    
+    impulse = UnivariateGaussianImpulseResponse(ones(3) / 3, 4, 1.0)
+    @test nbasis(impulse) == 3
+    @test nlags(impulse) == 4
+    @test nparams(impulse) == 3
+    @test params(impulse) == ones(3) / 3
+    @test params!(impulse, [0.25, 0.25, 0.50]) == [0.25, 0.25, 0.50]
+    @test_throws ArgumentError params!(impulse, [0.0, 1.0])
+    @test_throws DomainError params!(impulse, [0.1, 0.1, 0.1])
+    @test_throws DomainError params!(impulse, [0.5, 0.6, -0.1])
+    @test_throws DomainError params!(impulse, [1.1, 0.0, -0.1])
+
+    # intensity
+
+    # basis
+
+
+end
+
 @testset "UnivariateLogitNormalImpulseResponse" begin
 
     @test_throws DomainError UnivariateLogitNormalImpulseResponse(0.0, -1.0, 1.0, 1.0, 1.0, 1.0, 1.0)
