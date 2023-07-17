@@ -35,6 +35,7 @@ function integrated_intensity(process::ContinuousMultivariateBaseline, node::Int
 abstract type DiscreteBaseline <: Baseline end
 
 function rand(process::DiscreteBaseline, duration::Integer) end
+function intensity(process::DiscreteBaseline, time::AbstractFloat) end
 function intensity(process::DiscreteBaseline, times::AbstractVector{T}) where {T<:Integer} end
 
 
@@ -543,8 +544,126 @@ integrated_intensity(p::LogGaussianCoxProcess, duration::AbstractFloat) = integr
 
 """
     DiscreteUnivariateHomogeneousProcess
+
+A discrete-time homogeneous Poisson process.
+
+Supports Bayesian inference of the probabilistic model:
+
+    λ ~ Gamma(λ[i] | α0, β0)
+    x[t] ~ Poisson(x[t] | λ * dt) (t = 1, ...)
+
+### Arguments
+- `λ::AbstractFloat`
+- `α0::AbstractFloat`
+- `β0::AbstractFloat`
+- `αv::AbstractFloat`
+- `βv::AbstractFloat`
+- `dt::AbstractFloat
 """
-mutable struct DiscreteUnivariateHomogeneousProcess <: DiscreteUnivariateBaseline end
+mutable struct DiscreteUnivariateHomogeneousProcess{T<:AbstractFloat} <: DiscreteUnivariateBaseline
+    λ::AbstractFloat
+    α0::AbstractFloat
+    β0::AbstractFloat
+    αv::AbstractFloat
+    βv::AbstractFloat
+    dt::AbstractFloat
+
+    function DiscreteUnivariateHomogeneousProcess{T}(λ, α0, β0, αv, βv, dt) where {T<:AbstractFloat}
+        # TODO: validate arguments...
+
+        return new(λ, α0, β0, αv, βv, dt)
+    end
+end
+
+function DiscreteUnivariateHomogeneousProcess(λ::T, α0::T, β0::T, αv::T, βv::T, dt::T) where {T<:AbstractFloat}
+    return DiscreteUnivariateHomogeneousProcess{T}(λ, α0, β0, αv, βv, dt)
+end
+
+function DiscreteUnivariateHomogeneousProcess(λ::T, dt::T) where {T<:AbstractFloat}
+    return DiscreteUnivariateHomogeneousProcess{T}(λ, 1.0, 1.0, 1.0, 1.0, dt)
+end
+
+function multivarite(process::DiscreteUnivariateHomogeneousProcess, x) end
+
+nparams(process::DiscreteUnivariateHomogeneousProcess) = 1
+params(process::DiscreteUnivariateHomogeneousProcess) = [process.λ]
+
+function params!(process::DiscreteUnivariateHomogeneousProcess, λ)
+    length(λ) == nparams(process) || throw(ArgumentError(""))
+    λ[1] < 0.0 && throw(DomainError(λ, ""))
+
+    process.λ = λ[1]
+
+    return params(process)
+end
+
+function rand(process::DiscreteUnivariateHomogeneousProcess, duration::Integer)
+    duration < 0 && throw(DomainError(duration, "Number of time steps should be non-negative"))
+
+    return rand(Poisson(process.λ .* process.dt), duration)
+end
+
+function intensity(p::DiscreteUnivariateHomogeneousProcess, t::Integer)
+    t < 0.0 && throw(DomainError(t, "time should be non-negative"))
+
+    return p.λ
+end
+
+function intensity(process::DiscreteUnivariateHomogeneousProcess, times::AbstractVector{T}) where {T<:Integer}
+    any(times .< 0) && throw(DomainError(times, "Times should be non-negative"))
+
+    return fill(process.λ * process.dt, length(times))
+end
+
+function integrated_intensity(process::DiscreteUnivariateHomogeneousProcess, duration::AbstractFloat)
+    duration < 0.0 && throw(DomainError(duration, "duration shouls be non-negative"))
+
+    return process.λ * process.dt * duration
+end
+
+function resample!(process::DiscreteUnivariateHomogeneousProcess, parents)
+    N, T = sufficient_statistics(process, parents[:, 1])
+    α = process.α0 + N
+    β = process.β0 + T
+    process.λ = rand(Gamma(α, 1 / β))
+
+    return params(process)
+end
+
+function sufficient_statistics(process::DiscreteUnivariateHomogeneousProcess, data)
+    T = length(data)
+    N = sum(data)
+
+    return N, T
+end
+
+function logprior(process::DiscreteUnivariateHomogeneousProcess)
+    return pdf(Gamma(process.α0, 1 / process.β0), process.λ)
+end
+
+variational_params(p::DiscreteUnivariateHomogeneousProcess) = [p.αv, p.βv]
+
+function update!(process::DiscreteUnivariateHomogeneousProcess, data, parents)
+    """Perform a variational inference update. `parents` is the `T x (1 + B)` variational parameter for the auxillary parent variables.
+    """
+    length(data) != size(parents, 2) && throw(ArgumentError("data and parent dimensions do not conform"))
+
+    T = length(data)
+    B = size(parents, 2) - 1
+
+    process.αv = process.α0 .+ sum(parents[:, 1] .* data)
+    process.βv = 1 / process.β0 + T * process.dt
+
+    return process.αv, process.βv
+end
+
+function variational_log_expectation(process::DiscreteUnivariateHomogeneousProcess)
+    return digamma(process.αv) - log(process.βv)
+end
+
+function q(p::DiscreteUnivariateHomogeneousProcess)
+    return Gamma(p.αv, 1 / p.βv)
+end
 
 
 """
