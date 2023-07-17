@@ -62,9 +62,9 @@ nlags = 4;
 duration = 1000;
 dt = 1.0;
 baseline = DiscreteHomogeneousProcess([1.0, 2.0], dt);
-weights = DenseWeightModel([0.1 0.2; 0.2 0.1]);
-impulses = DiscreteGaussianImpulseResponse(ones(nnodes, nnodes, nbasis) ./ nbasis, nlags, dt);
-process = DiscreteStandardHawkesProcess(baseline, impulses, weights, dt);
+impulse_response = DiscreteGaussianImpulseResponse(ones(nnodes, nnodes, nbasis) ./ nbasis, nlags, dt);
+weight_model = DenseWeightModel([0.1 0.2; 0.2 0.1]);
+process = DiscreteStandardHawkesProcess(baseline, impulse_response, weight_model, dt);
 isstable(process)
 data = rand(process, duration);
 NetworkHawkesProcesses.plot(process, data; stop=100, path="/Users/colinswaney/GitHub/NetworkHawkesProcesses.jl/docs/src/assets/img/discrete-data.svg")
@@ -74,7 +74,7 @@ NetworkHawkesProcesses.params(process)
 # mean(res.samples)
 # res = vb!(process, data; verbose=true, regularize=false);
 ll = loglikelihood(process, data)
-NetworkHawkesProcesses.plot(process.impulses, (1, 1))
+NetworkHawkesProcesses.plot(process.impulse_response, (1, 1))
 
 
 # TODO
