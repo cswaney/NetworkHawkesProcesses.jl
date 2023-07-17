@@ -152,6 +152,37 @@ function resample_parent(process::DiscreteHawkesProcess, node, time, data, convo
     return rand(Multinomial(nevents, μ))
 end
 
+function resample_parents(process::DiscreteUnivariateHawkesProcess, data, convolved)
+    """Resample latent parent variables given model parameters, event data, and pre-computed convolutions."""
+    T, B = size(convolved)
+    parents = zeros(Int64, T, 1 + B)
+    if Threads.nthreads() > 1
+        @debug "using multi-threaded parent sampler"
+        Threads.@threads for t in eachindex(data)
+            parents[t, :] = resample_parent(process, t, data, convolved)
+        end
+    else
+        for t = 1:T
+            parents[t, :] = resample_parent(process, t, data, convolved)
+        end
+    end
+    return parents
+end
+
+function resample_parent(process::DiscreteUnivariateHawkesProcess, time, data, convolved)
+    nevents = data[time]
+    λ0 = intensity(process.baseline, time)
+    _, B = size(convolved)
+    λ = zeros(B)
+    for b = 1:B
+        shat = convolved[time, b]
+        λ[b] = shat * bump(process, b)
+    end
+    μ = [λ0, vec(λ)...]
+    μ ./= sum(μ)
+    return rand(Multinomial(nevents, μ))
+end
+
 function parent_counts(parents::Array{Int64,3}, ndims, nbasis)
     counts = zeros(ndims, ndims)
     for parentchannel = 1:ndims
@@ -201,8 +232,8 @@ function update_parent(process::DiscreteHawkesProcess, pidx, cidx, shat)
     if pidx == 0
         return exp(variational_log_expectation(process.baseline, cidx))
     else
-        Elogθ = variational_log_expectation(process.impulses, pidx, cidx)
-        ElogW = variational_log_expectation(process.weights, pidx, cidx)
+        Elogθ = variational_log_expectation(process.impulse_response, pidx, cidx)
+        ElogW = variational_log_expectation(process.weight_model, pidx, cidx)
         return shat .* exp.(Elogθ .+ ElogW)
     end
 end

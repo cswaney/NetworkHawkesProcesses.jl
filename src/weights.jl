@@ -119,7 +119,7 @@ function resample!(model::UnivariateWeightModel, data, parents)
     β = model.β0 + ntotal
     model.w = rand(Gamma(α, 1 / β))
 
-    return model.w
+    return params(model)
 end
 
 function sufficient_statistics(model::UnivariateWeightModel, data, parents)
@@ -131,13 +131,13 @@ function sufficient_statistics(model::UnivariateWeightModel, data, parents)
     return ntotal, nchild
 end
 
-function sufficient_statistics(model::UnivariateWeightModel, data::Matrix, parents)
+function sufficient_statistics(model::UnivariateWeightModel, data::Vector{Int64}, parents)
     """Calculate sufficient statistics for discrete-time data. `parents` is the `T x (1 + B)` variational parameter for the auxillary parent variables."""
     Mn = sum(data) # sum all events
     Mnm = sum(parents[:, 2:end]) # sum endogenous events
 
     return Mn, Mnm
-end 
+end
 
 logprior(model::UnivariateWeightModel) = pdf(Gamma(model.α0, 1 / model.β0), model.w)
 
@@ -292,6 +292,12 @@ mutable struct SpikeAndSlabWeightModel{T<:AbstractFloat} <: MultivariateWeightMo
     κv1::Matrix{T}
     νv1::Matrix{T}
     ρv::Matrix{T}
+
+    function SpikeAndSlabWeightModel{T}(W, κ0, ν0, κ1, ν1, κv0, vv0, κv1, vv1, ρv) where {T<:AbstractFloat}
+        # TODO: validate arguments...
+
+        return new(W, κ0, ν0, κ1, ν1, κv0, vv0, κv1, vv1, ρv)
+    end
 end
 
 function SpikeAndSlabWeightModel(W::Matrix{T}, κ0::T, ν0::T, κ1::T, ν1::T,
@@ -323,7 +329,7 @@ function resample!(model::SpikeAndSlabWeightModel, data, parents)
     return copy(model.W)
 end
 
-function logprior(model::DenseWeightModel)
+function logprior(model::SpikeAndSlabWeightModel)
     throw(ErrorException("Not implemented"))
 end
 
