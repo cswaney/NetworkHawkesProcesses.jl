@@ -36,3 +36,17 @@ println("Generated $(sum(data)) events")
 res = mcmc!(process, data; verbose=true);
 θmcmc = mean(res.samples);
 [θ θmcmc]
+
+# reset parameters
+params!(process, θ)
+
+# estimate parameters via (mean-field) variational Bayes
+res = vb!(process, data; max_steps=100, verbose=true);
+qλ = mean.(NetworkHawkesProcesses.q(process.baseline))
+qW0 = mean.(NetworkHawkesProcesses.q(process.weight_model, 0))
+qW1 = mean.(NetworkHawkesProcesses.q(process.weight_model, 1))
+qθ = mean.(NetworkHawkesProcesses.q(process.impulse_response))
+qθ = reshape(transpose(cat(qθ..., dims=2)), size(process.impulse_response.θ))
+qA = Bool.(round.(mean.(Bernoulli.(process.weight_model.ρv))))
+θvb = [qλ; vec(qA .* qW1 .* qθ)];
+[θ θvb]
