@@ -50,7 +50,7 @@ end
 
 function sufficient_statistics(model::MultivariateWeightModel, data::Matrix, parents)
     """Calculate sufficient statistics for discrete-time data."""
-    nnodes, _ = ndims(model)
+    nnodes = ndims(model)
     nbasis = div((size(parents)[3] - 1), nnodes)
     Mn = node_counts(data)
     Mnm = parent_counts(parents, nnodes, nbasis)
