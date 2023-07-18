@@ -11,7 +11,7 @@ function rand(model::Weights) end
 function logprior(model::Weights) end
 
 
-abstract type MultivariateWeightModel end
+abstract type MultivariateWeightModel <: Weights end
 
 ndims(model::MultivariateWeightModel) = size(model.W, 1)
 nparams(model::MultivariateWeightModel) = length(model.W)
