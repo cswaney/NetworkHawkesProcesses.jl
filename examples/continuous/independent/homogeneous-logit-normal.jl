@@ -4,7 +4,7 @@ using Random
 using Statistics
 
 # set random seed
-Random.seed!(0);
+Random.seed!(1);
 
 # set hyperparameters
 duration = 1000.0;
