@@ -1,4 +1,5 @@
 using NetworkHawkesProcesses
+using NetworkHawkesProcesses: nlags, nbasis
 using Distributions
 using Test
 
