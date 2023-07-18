@@ -6,7 +6,7 @@ using Statistics
 using Random
 
 # set random seed
-Random.seed!(0);
+Random.seed!(1);
 
 # set hyperparameters
 duration = 1000.0; # 100.0 or 1000.0
@@ -56,11 +56,11 @@ duration = 1000.0; # 100.0 or 1000.0
 baseline = HomogeneousProcess([θ[1]]);
 weights = DenseWeightModel(reshape([θ[4]], (1, 1)));
 impulses = LogitNormalImpulseResponse(reshape([θ[2]], (1, 1)), reshape([θ[3]], (1, 1)), Δtmax);
-process = ContinuousStandardHawkesProcess(baseline, impulses, weights);
-println("Process is stable? $(isstable(process))")
+process2 = ContinuousStandardHawkesProcess(baseline, impulses, weights);
+println("Process is stable? $(isstable(process2))")
 
 # save a copy of parameters
-θ = copy(params(process));
+θ = copy(params(process2));
 
 # generate random data
 events, duration = data
@@ -68,14 +68,14 @@ data = (events, ones(Int, length(events)), duration)
 println("Generated $(length(data[1])) events")
 
 # estimate parameters via mle
-res = mle!(process, data; verbose=true);
+res = mle!(process2, data; verbose=true);
 θmle = res.maximizer;
 [θ θmle]
 
 # reset parameters
-params!(process, θ);
+params!(process2, θ);
 
 # estimate parameters via mcmc (NOTE: this would be *extremely* slow for exponential impulse response)
-res = mcmc!(process, data; verbose=true);
+res = mcmc!(process2, data; verbose=true);
 θmcmc = mean(res.samples);
 [θ θmcmc]
