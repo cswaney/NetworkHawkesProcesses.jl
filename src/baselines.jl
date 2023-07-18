@@ -759,9 +759,9 @@ function intensity(p::DiscreteHomogeneousProcess, ts::AbstractVector{T}) where {
     Matrix(transpose(repeat(p.λ, 1, length(ts)))) .* p.dt
 end
 
-function intensity(p::DiscreteHomogeneousProcess, node::Integer, time::AbstractFloat)
+function intensity(p::DiscreteHomogeneousProcess, node::Integer, time::Integer)
     (node < 1 || node > ndims(p)) && throw(DomainError(node, "Nodes must be between one and ndims"))
-    time < 0.0 && throw(DomainError(time, "Time must be non-negative"))
+    time < 0 && throw(DomainError(time, "Time must be non-negative"))
     p.λ[node] .* p.dt
 end
 
