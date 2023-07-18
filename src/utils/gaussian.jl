@@ -13,7 +13,8 @@ function (kernel::Kernel)(x::Vector)
             Σ[i, j] = kernel(x[i], x[j])
         end
     end
-    return posdef!(Symmetric(Σ, :L))
+
+    return PDMat(posdef!(Symmetric(Σ, :L)))
 end
 
 struct SquaredExponentialKernel <: Kernel

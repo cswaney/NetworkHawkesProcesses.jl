@@ -1,4 +1,6 @@
 function posdef!(sigma; maxiter=3)
+    isposdef(sigma) && return sigma
+
     iter = 0
     while iter < maxiter
         eps = 2 * minimum(eigvals(sigma))
@@ -7,6 +9,7 @@ function posdef!(sigma; maxiter=3)
         iter += 1
     end
     println("WARNING: failed to make sigma positive definite")
+    
     return sigma
 end
 

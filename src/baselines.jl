@@ -334,7 +334,7 @@ LogGaussianCoxProcess(
 
 function LogGaussianCoxProcess(gp::GaussianProcess, m, T, n, k)
     """Construct a LGCP with random intensity given a Gaussian process."""
-    x = range(0.0, length=n+1, stop=T)
+    x = Vector(range(0.0, length=n+1, stop=T))
     Σ = cov(gp, x)
     ys = [rand(gp, x; sigma=Σ) for _ in 1:k]
     λ = [exp.(m .+ y) for y in ys]
