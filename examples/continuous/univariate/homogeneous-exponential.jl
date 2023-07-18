@@ -33,7 +33,7 @@ res = mle!(process, data; verbose=true);
 # reset parameters
 params!(process, θ);
 
-# estimate parameters via mcmc (this is very slow for exponential impulse response models)
-res = mcmc!(process, data; verbose=true);
-θmcmc = mean(res.samples);
-[θ θmcmc]
+# estimate parameters via mcmc (*very* slow for exponential impulse response)
+# res = mcmc!(process, data; verbose=true);
+# θmcmc = mean(res.samples);
+# [θ θmcmc]
