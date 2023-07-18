@@ -32,14 +32,5 @@ res = mle!(process, data; verbose=true);
 θmle = res.maximizer;
 [θ θmle]
 
-# reset parameters
-params!(process, θ);
-
-# estimate parameters via mcmc (this is very slow for exponential impulse response models)
-res = mcmc!(process, data; verbose=true);
-θmcmc = mean(res.samples);
-[θ θmcmc]
-
-
 # convert to standard process
 process = ContinuousStandardHawkesProcess(process)
