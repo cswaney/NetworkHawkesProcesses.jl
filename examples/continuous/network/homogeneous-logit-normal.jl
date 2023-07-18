@@ -11,7 +11,7 @@ Random.seed!(0);
 # set hyperparameters
 nnodes = 2;
 duration = 1000.0; # 100.0 or 1000.0
-Δtmax = 1.0;
+Δtmax = 5.0;
 plink = 0.5;
 
 # create a random process
