@@ -553,7 +553,7 @@ function intensity(impulse::LogitNormalImpulseResponse)
     return ir
 end
 
-function intensity(impulse::LogitNormalImpulseResponse, parentnode, childnode, Δt)
+function intensity(impulse::LogitNormalImpulseResponse, parentnode, childnode, Δt::AbstractFloat)
     μ = impulse.μ[parentnode, childnode]
     τ = impulse.τ[parentnode, childnode]
     return pdf(LogitNormal(μ, τ^(-1 / 2)), Δt ./ impulse.Δtmax) / impulse.Δtmax
