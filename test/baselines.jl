@@ -1,5 +1,5 @@
 using NetworkHawkesProcesses
-using NetworkHawkesProcesses: node_counts, nparams
+using NetworkHawkesProcesses: node_counts, nparams, range, length, nsteps
 using NetworkHawkesProcesses: split_extract
 using NetworkHawkesProcesses: SquaredExponentialKernel, GaussianProcess
 using NetworkHawkesProcesses: sufficient_statistics, integrated_intensity, update!
@@ -84,11 +84,11 @@ end
     @test_throws DomainError DiscreteHomogeneousProcess(ones(2), 0.0)
 
     process = DiscreteHomogeneousProcess(ones(2), 0.5)
-    @test intensity(process, 0:10) == 0.5 * ones(11, 2)
-    @test intensity(process, 1, 0.0) == intensity(process, 2, 0.0) == 0.5
-    @test_throws DomainError intensity(process, 0, 0.0)
-    @test_throws DomainError intensity(process, 3, 0.0)
-    @test_throws DomainError intensity(process, 1, -1.0)
+    @test intensity(process, 1:10) == 0.5 * ones(10, 2)
+    @test intensity(process, 1, 1) == intensity(process, 2, 1) == 0.5
+    @test_throws DomainError intensity(process, 0, 1)
+    @test_throws DomainError intensity(process, 3, 1)
+    @test_throws DomainError intensity(process, 1, 0)
     @test_throws DomainError intensity(process, -1:10)
 
     parents = [0 0 0 1 0 1 0 0 0 1; 2 0 0 0 0 0 0 0 0 0]
@@ -134,3 +134,28 @@ end
 
     @test logprior(process) == -1.0
 end
+
+@testset "DiscreteUnivariateLogGaussianCoxProcess" begin
+
+    kernel = SquaredExponentialKernel(1.0, 1.0)
+    gp = GaussianProcess(kernel)
+    baseline = DiscreteUnivariateLogGaussianCoxProcess(gp, 100.0, 10, 0.0, 2.5)
+
+    @test nsteps(baseline) == length(range(baseline))
+    @test nparams(baseline) == 11 # nsteps(baseline) + 1
+    
+    @test_throws ArgumentError rand(baseline, 41)
+    @test_throws ArgumentError rand(baseline, 0)
+
+    @test_throws DomainError intensity(baseline, 0)
+    @test_throws DomainError intensity(baseline, 41)
+
+    @test_throws DomainError intensity(baseline, 0:40)
+    @test_throws DomainError intensity(baseline, 1:41)
+
+    @test_throws ArgumentError loglikelihood(baseline, ones(Int, 41))
+
+    y = log.(baseline.λ) .- baseline.m
+    @test loglikelihood(baseline, ones(Int, 40)) == loglikelihood(baseline, ones(Int, 40), y)
+end
+
