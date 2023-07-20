@@ -389,10 +389,10 @@ end
 
 function resample!(process::UnivariateLogGaussianCoxProcess, data, parents; sampler=elliptical_slice)
     _, parentnodes = parents
-    events, _ = data
+    events, duration = data
     backgroundevents = events[parentnodes .== 0]
     init_y = log.(process.λ) .- process.m
-    y = sampler(process, backgroundevents, init_y)
+    y = sampler(process, (backgroundevents, duration), init_y)
     process.λ .= exp.(process.m .+ y)
 
     return params(process)
