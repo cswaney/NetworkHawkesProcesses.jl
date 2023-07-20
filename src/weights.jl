@@ -145,18 +145,19 @@ function update!(model::UnivariateWeightModel, data, parents)
     """Perform a variational inference update. `parents` is the `T x (1 + B)` variational parameter for the auxillary parent variables."""
     T = length(data)
     B = size(parents, 2) - 1
-    κ = 0.0
-    ν = 0.0
+    α = 0.0
+    β = 0.0
     for t = 1:T
         s = data[t]
         for b = 1:B
-            κ += s * parents[t, 1 + b]
+            α += s * parents[t, 1 + b]
         end
-        ν += s
+        β += s
     end
-    model.κv = model.κ .+ κ
-    model.νv = model.ν .+ ν
-    return copy(model.κv), copy(model.νv)
+    model.αv = model.α0 .+ α
+    model.βv = model.β0 .+ β
+
+    return copy(model.αv), copy(model.βv)
 end
 
 variational_params(model::UnivariateWeightModel) = [model.αv, model.βv]
