@@ -801,7 +801,7 @@ end
 function intensity(p::DiscreteUnivariateHomogeneousProcess, t::Integer)
     t < 0.0 && throw(DomainError(t, "time should be non-negative"))
 
-    return p.λ
+    return p.λ * p.dt
 end
 
 function intensity(process::DiscreteUnivariateHomogeneousProcess, times::AbstractVector{T}) where {T<:Integer}
@@ -819,7 +819,7 @@ end
 function resample!(process::DiscreteUnivariateHomogeneousProcess, parents)
     N, T = sufficient_statistics(process, parents[:, 1])
     α = process.α0 + N
-    β = process.β0 + T
+    β = process.β0 + T * process.dt
     process.λ = rand(Gamma(α, 1 / β))
 
     return params(process)
@@ -841,7 +841,7 @@ variational_params(p::DiscreteUnivariateHomogeneousProcess) = [p.αv, p.βv]
 function update!(process::DiscreteUnivariateHomogeneousProcess, data, parents)
     """Perform a variational inference update. `parents` is the `T x (1 + B)` variational parameter for the auxillary parent variables.
     """
-    length(data) != size(parents, 2) && throw(ArgumentError("data and parent dimensions do not conform"))
+    length(data) != size(parents, 1) && throw(ArgumentError("data and parent dimensions do not conform"))
 
     T = length(data)
 
@@ -946,7 +946,7 @@ end
 function intensity(p::DiscreteHomogeneousProcess, t::Integer)
     t < 1 && throw(DomainError(t, "Time should be a positive integer"))
     
-    return p.λ
+    return p.λ .* p.dt
 end
 
 function intensity(p::DiscreteHomogeneousProcess, ts::AbstractVector{T}) where {T<:Integer}
