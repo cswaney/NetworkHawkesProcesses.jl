@@ -12,7 +12,7 @@ Random.seed!(0);
 nbasis = 3;
 nlags = 4;
 duration = 1000; # 100 or 1000
-dt = 1.0;
+dt = 2.0;
 
 # create a random process
 baseline = DiscreteUnivariateHomogeneousProcess(rand(), dt);
@@ -40,3 +40,14 @@ params!(process, θ);
 res = mcmc!(process, data; verbose=true);
 θmcmc = mean(res.samples);
 [θ θmcmc]
+
+# reset parameters
+params!(process, θ);
+
+# estimate parameters via (mean-field) variational Bayes
+res = vb!(process, data; max_steps=100, verbose=true);
+qλ = mean(NetworkHawkesProcesses.q(process.baseline))
+qW = mean(NetworkHawkesProcesses.q(process.weight_model))
+qθ = mean(NetworkHawkesProcesses.q(process.impulse_response))
+θvb = [qλ; vec(qW .* qθ)];
+[θ θvb]

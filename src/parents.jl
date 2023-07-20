@@ -237,3 +237,34 @@ function update_parent(process::DiscreteHawkesProcess, pidx, cidx, shat)
         return shat .* exp.(Elogθ .+ ElogW)
     end
 end
+
+function update_parents(process::DiscreteUnivariateHawkesProcess, convolved)
+    T, B = size(convolved)
+    u = zeros(T, 1 + B)
+    if Threads.nthreads() > 1
+        @debug "using multi-threaded parent updates"
+        Threads.@threads for tidx = 1:T
+            shat = convolved[tidx, :]
+            u[tidx, 1] = update_baseline_parent(process)
+            u[tidx, 2:end] = update_impulse_response_parent(process, shat)
+        end
+    else
+        for tidx = 1:T
+            shat = convolved[tidx, :]
+            u[tidx, 1] = update_baseline_parent(process)
+            u[tidx, 2:end] = update_impulse_response_parent(process, shat)
+        end
+    end
+    Z = sum(u, dims=2)
+    return u ./ Z
+end
+
+function update_baseline_parent(process::DiscreteUnivariateHawkesProcess)
+    return exp(variational_log_expectation(process.baseline))
+end
+
+function update_impulse_response_parent(process::DiscreteUnivariateHawkesProcess, shat)
+    Elogθ = variational_log_expectation(process.impulse_response)
+    ElogW = variational_log_expectation(process.weight_model)
+    return shat .* exp.(Elogθ .+ ElogW)
+end

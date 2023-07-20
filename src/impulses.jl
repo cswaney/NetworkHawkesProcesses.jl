@@ -123,11 +123,25 @@ function variational_params(f::UnivariateGaussianImpulseResponse)
     return copy(f.γv)
 end
 
-function update!(f::UnivariateGaussianImpulseResponse) end
+function update!(impulse::UnivariateGaussianImpulseResponse, data, parents)
+    """Perform a variational inference update. `parents` is the `T x (1 + B)` variational parameter for the auxillary parent variables."""
+    T = length(data)
+    B = nbasis(impulse)
+    γ = zeros(B)
+    for b = 1:B
+        for t = 1:T
+            γ[b] += data[t] .* parents[t, 1 + b]
+        end
+    end
+    impulse.γv = impulse.γ .+ γ
+    return copy(impulse.γv)
+end
 
-function variational_log_expectation(f::UnivariateGaussianImpulseResponse) end
+function variational_log_expectation(impulse::UnivariateGaussianImpulseResponse)
+    return digamma.(impulse.γv) .- digamma(sum(impulse.γv))
+end
 
-function q(f::UnivariateGaussianImpulseResponse) end
+q(impulse::UnivariateGaussianImpulseResponse) = Dirichlet(impulse.γv)
 
 
 abstract type DiscreteMultivariateImpulseResponse <: DiscreteImpulseResponse end

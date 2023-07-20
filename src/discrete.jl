@@ -243,9 +243,20 @@ function resample!(process::DiscreteUnivariateHawkesProcess, data, convolved)
     return params(process)
 end
 
-function vb!() end
+function variational_params(process::DiscreteUnivariateHawkesProcess)
+    θ_baseline = variational_params(process.baseline)
+    θ_impulse_response = variational_params(process.impulse_response)
+    θ_weights = variational_params(process.weight_model)
+    return [θ_baseline; θ_impulse_response; θ_weights]
+end
 
-function update!() end
+function update!(process::DiscreteUnivariateHawkesProcess, data, convolved)
+    parents = update_parents(process, convolved)
+    update!(process.baseline, data, parents)
+    update!(process.weight_model, data, parents)
+    update!(process.impulse_response, data, parents)
+    return variational_params(process)
+end
 
 
 
