@@ -844,7 +844,6 @@ function update!(process::DiscreteUnivariateHomogeneousProcess, data, parents)
     length(data) != size(parents, 2) && throw(ArgumentError("data and parent dimensions do not conform"))
 
     T = length(data)
-    B = size(parents, 2) - 1
 
     process.αv = process.α0 .+ sum(parents[:, 1] .* data)
     process.βv = 1 / process.β0 + T * process.dt
