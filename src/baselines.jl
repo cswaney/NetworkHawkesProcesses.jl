@@ -357,6 +357,8 @@ function UnivariateLogGaussianCoxProcess(gp::GaussianProcess, duration::Abstract
     return UnivariateLogGaussianCoxProcess{T}(x, λ, Σ, m)
 end
 
+multivariate(p::UnivariateLogGaussianCoxProcess, params) = LogGaussianCoxProcess(p.x, params, p.Σ, p.m)
+
 length(process::UnivariateLogGaussianCoxProcess) = process.x[end]
 nparams(process::UnivariateLogGaussianCoxProcess) = length(process.λ)
 params(process::UnivariateLogGaussianCoxProcess) = copy(process.λ)
@@ -431,7 +433,7 @@ end
 
 function elliptical_slice(process::UnivariateLogGaussianCoxProcess, data, y; max_attempts=100)
     """
-        elliptical_slice(p::LogGaussianCoxProcess, data, y0)
+        elliptical_slice(p::UnivariateLogGaussianCoxProcess, data, y0)
 
     Sample the posterior of a log Gaussian Cox process (LGCP) via elliptical slicing [Murray et al., 2010].
 
@@ -778,7 +780,11 @@ function DiscreteUnivariateHomogeneousProcess(λ::T, dt::T) where {T<:AbstractFl
     return DiscreteUnivariateHomogeneousProcess{T}(λ, 1.0, 1.0, 1.0, 1.0, dt)
 end
 
-function multivarite(process::DiscreteUnivariateHomogeneousProcess, x) end
+function multivariate(process::DiscreteUnivariateHomogeneousProcess, params)
+    λ = cat(params...; dims=1) # params = params.([p1, p2, ...]
+
+    return DiscreteHomogeneousProcess(λ, process.dt)
+end
 
 nparams(process::DiscreteUnivariateHomogeneousProcess) = 1
 params(process::DiscreteUnivariateHomogeneousProcess) = [process.λ]
@@ -1067,7 +1073,7 @@ nsteps = 10
 
 kernel = SquaredExponentialKernel(sigma, eta);
 gp = GaussianProcess(kernel);
-baseline = DiscreteLogGaussianCoxProcess(gp, duration, nsteps, bias, dt);
+baseline = DiscreteUnivariateLogGaussianCoxProcess(gp, duration, nsteps, bias, dt);
 rand(baseline, 10)
 ```
 """
@@ -1108,6 +1114,8 @@ function DiscreteUnivariateLogGaussianCoxProcess(gp::GaussianProcess, duration, 
 
     return DiscreteUnivariateLogGaussianCoxProcess{T}(x, λ, Σ, m, dt)
 end
+
+multivariate(p::DiscreteUnivariateLogGaussianCoxProcess, params) = DiscreteLogGaussianCoxProcess(p.x, hcat(params...), p.Σ, p.m, p.dt)
 
 """
     range(p::DiscreteUnivariateLogGaussianCoxProcess)
@@ -1268,7 +1276,7 @@ The process is sampled by interpolating between intensity values `λ[1], ..., λ
 
 # Arguments
 - `x::Vector{Int64}`: a strictly increasing vector of sampling gridpoints.
-- `λ::Matrix{Float64}`: a non-negative, `T x N` intensity matrix, ie, `λ[i, n] = λ_n([x[i])`.
+- `λ::Matrix{Float64}`: a non-negative, `length(x) x ndims` intensity matrix, ie, `λ[i, n] = λ_n([x[i])`.
 - `Σ::Matrix{Float64}`: a positive-definite variance matrix.
 - `m::Float64`: intensity offset equal to `log(λ0)` of a homogeneous process.
 """
