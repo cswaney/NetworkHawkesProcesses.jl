@@ -135,6 +135,28 @@ end
     @test logprior(process) == -1.0
 end
 
+@testset "UnivariateLogGaussianCoxProcess" begin
+    
+    kernel = SquaredExponentialKernel(1.0, 1.0)
+    gp = GaussianProcess(kernel)
+    @test_throws DomainError UnivariateLogGaussianCoxProcess(gp, 0.0, 10)
+    @test_throws DomainError UnivariateLogGaussianCoxProcess(gp, 100.0, 0)
+    baseline = UnivariateLogGaussianCoxProcess(gp, 100.0, 10)
+
+    @test ndims(baseline) == 1
+    @test length(baseline) == 100.0
+    @test nparams(baseline) == 11
+
+    @test_throws ArgumentError params!(baseline, [0.0])
+    @test_throws DomainError params!(baseline, -1 .* ones(11))
+    params!(baseline, exp.(ones(11)))
+    @test params(baseline) == exp.(ones(11))
+
+    @test_throws ArgumentError rand(baseline, 0.)
+
+    @test intensity(baseline, baseline.x[1]) == baseline.λ[1]
+end
+
 @testset "DiscreteUnivariateLogGaussianCoxProcess" begin
 
     kernel = SquaredExponentialKernel(1.0, 1.0)

@@ -295,16 +295,16 @@ The data generating process is
     λ(t) = exp(m + y(t))
     s ~ PP(λ(t))
 
-For an arbitrary set of gridpoints, `x[1], ..., x[N]`, a corresponding sample of the Gaussian process, `y[1], ..., y[N]`, has a `N(0, Σ)` distribution, where
+For an sequence of gridpoints, `x[1] = 0.0, ..., x[N]`, a corresponding sample of the Gaussian process, `y[1], ..., y[N]`, has a `N(0, Σ)` distribution, where
 
     Σ[i, j] = K(x[i], x[j])
 
-The process is sampled by interpolating between intensity values `λ[1], ..., λ[N]`.
+The process is sampled via linear interpolation between intensity values `λ[1], ..., λ[N]`.
 
 ### Arguments
-- `x::Vector{AbstractFloat}`: grid values [0.0, ..., T].
-- `λ::Vector{AbstractFloat}`: non-negative intensity parameter.
-- `Σ::PdMat{AbstractFloat}`: positive definite covariance matrix.
+- `x::Vector{<:AbstractFloat}`: gridpoints [0.0, ..., T].
+- `λ::Vector{<:AbstractFloat}`: non-negative intensity parameter.
+- `Σ::PdMat{<:AbstractFloat}`: positive definite covariance matrix.
 - `m::AbstractFloat`: offset hyperparameter.
 """
 struct UnivariateLogGaussianCoxProcess{T<:AbstractFloat} <: ContinuousUnivariateBaseline
@@ -315,9 +315,9 @@ struct UnivariateLogGaussianCoxProcess{T<:AbstractFloat} <: ContinuousUnivariate
 
     function UnivariateLogGaussianCoxProcess{T}(x, λ, Σ, m) where {T<:AbstractFloat}
         x[1] == 0.0 || throw(ArgumentError("Grid values x should start at 0.0"))
-        any(λ) < 0.0 && throw(DomainError(λ, "Intensity parameter λ should be non-negative"))
+        any(λ .< 0.0) && throw(DomainError(λ, "Intensity parameter λ should be non-negative"))
 
-        return new(x, λ, PDMat(Σ), m)
+        return new(x, λ, Σ, m)
     end
 end
 
@@ -335,21 +335,36 @@ UnivariateLogGaussianCoxProcess(
     m::T
 ) where {T<:AbstractFloat} = UnivariateLogGaussianCoxProcess{T}(x, λ, K(x), m)
 
-function UnivariateLogGaussianCoxProcess(gp::GaussianProcess, m, T, n, k)
-    """Construct a LGCP with random intensity given a Gaussian process."""
-    x = Vector(range(0.0, length=n+1, stop=T))
+"""
+    UnivariateLogGaussianCoxProcess(gp::GaussianProcess, duration, nsteps, m)
+
+Construct a log Gaussian Cox process with intensity randomly sampled from a Gaussian process along gridpoints evenly distributed between `0.0` and `duration`.
+
+### Example
+kernel = SquaredExponentialKernel(1.0, 1.0)
+gp = GaussianProcess(kernel)
+baseline = UnivariateLogGaussianCoxProcess(gp, 100.0, 10)
+"""
+function UnivariateLogGaussianCoxProcess(gp::GaussianProcess, duration::AbstractFloat, nsteps::Integer, m::T=0.0) where {T<:AbstractFloat}
+    duration > 0.0 || throw(DomainError(duration, "Duration should be positive"))
+    nsteps > 0 || throw(DomainError(nsteps, "Number of steps should be  a positive integer"))
+
+    x = Vector(range(start=0.0, stop=duration, length=nsteps+1))
     Σ = cov(gp, x)
     y = rand(gp, x; sigma=Σ)
     λ = exp.(m .+ y)
-    return UnivariateLogGaussianCoxProcess(x, λ, Σ, m)
+
+    return UnivariateLogGaussianCoxProcess{T}(x, λ, Σ, m)
 end
 
 length(process::UnivariateLogGaussianCoxProcess) = process.x[end]
-nparams(process::UnivariateLogGaussianCoxProcess) = length.(process.λ)
+nparams(process::UnivariateLogGaussianCoxProcess) = length(process.λ)
 params(process::UnivariateLogGaussianCoxProcess) = copy(process.λ)
 
 function params!(process::UnivariateLogGaussianCoxProcess, x)
     length(x) != nparams(process) && throw(ArgumentError("Parameter vector length ($(length(x))) should equal the number of model parameters ($(nparams(process)))."))
+    any(x .< 0.) && throw(DomainError(x, "Intensity parameter should be non-negative"))
+
 
     process.λ .= x
 
@@ -357,7 +372,7 @@ function params!(process::UnivariateLogGaussianCoxProcess, x)
 end
 
 function Base.rand(process::UnivariateLogGaussianCoxProcess, duration::AbstractFloat)
-    length(process) != duration && throw(ArgumentError("Sample duration should match process duration."))
+    length(process) != duration && throw(ArgumentError("Sample duration should equal process duration."))
 
     f = LinearInterpolator(process.x, process.λ)
     events = rejection_sample(f, rand(Poisson(integrate(f))))
@@ -368,34 +383,33 @@ end
 function loglikelihood(process::UnivariateLogGaussianCoxProcess, data, y)
     events, _ = data
     f = LinearInterpolator(process.x, exp.(process.m .+ y))
-    ll = 0.0
-    ll -= integrate(f)
-    ll += sum(log.(f.(events)))
-    return ll
+
+    return sum(log.(f.(events))) - integrate(f)
 end
 
 function resample!(process::UnivariateLogGaussianCoxProcess, data, parents; sampler=elliptical_slice)
     _, parentnodes = parents
-    backgroundevents = data[parentnodes .== 0]
+    events, _ = data
+    backgroundevents = events[parentnodes .== 0]
     init_y = log.(process.λ) .- process.m
     y = sampler(process, backgroundevents, init_y)
-    process.λ = exp.(process.m .+ y)
+    process.λ .= exp.(process.m .+ y)
 
     return params(process)
 end
 
 function metropolis_hastings(process::UnivariateLogGaussianCoxProcess, data, y0; step_size=0.1, max_attempts=max_attempts)
     """
-        metropolis_hastings(p::LogGaussianCoxProcess, data, y0; step_size)
+        metropolis_hastings(p::UnivariateLogGaussianCoxProcess, data, y0; step_size)
 
     Resample the posterior of a log Gaussian Cox process (LGCP) via Metropolis-Hastings [Neal, 1999].
 
-    # Arguments
+    ### Arguments
     - `process`: log Gaussian Cox process.
     - `data`: observed data generated by the Poisson process.
     - `y0`: current sample of the latent Gaussian process.
 
-    # Keyword Arguments
+    ### Keyword Arguments
     - `step_size`: step size parameter.
     """
     y = y0
@@ -453,14 +467,14 @@ function elliptical_slice(process::UnivariateLogGaussianCoxProcess, data, y; max
             return ynew
         end
     end
-    error("Elliptical slice sampling reached maximum attempts.")
+    throw(ErrorException("Elliptical slice sampling reached maximum attempts."))
 end
 
 function intensity(p::UnivariateLogGaussianCoxProcess, time::AbstractFloat)
     return LinearInterpolator(p.x, p.λ)(time)
 end
 
-integrated_intensity(p::UnivariateLogGaussianCoxProcess, duration::AbstractFloat) = integrate(LinearInterpolator(p.x, p.λ[k]))
+integrated_intensity(p::UnivariateLogGaussianCoxProcess, duration::AbstractFloat) = integrate(LinearInterpolator(p.x, p.λ))
 
 
 
