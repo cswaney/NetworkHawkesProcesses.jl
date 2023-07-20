@@ -35,8 +35,8 @@ function integrated_intensity(process::ContinuousMultivariateBaseline, node::Int
 abstract type DiscreteBaseline <: Baseline end
 
 function rand(process::DiscreteBaseline, duration::Integer) end
-function intensity(process::DiscreteBaseline, time::AbstractFloat) end
-function intensity(process::DiscreteBaseline, times::AbstractVector{T}) where {T<:Integer} end
+function intensity(process::DiscreteBaseline, time::Integer) end
+function intensity(process::DiscreteBaseline, times::AbstractVector{<:Integer}) end
 
 
 abstract type DiscreteUnivariateBaseline <: DiscreteBaseline end
@@ -47,8 +47,8 @@ function multivariate(process::DiscreteUnivariateBaseline, x) end
 
 abstract type DiscreteMultivariateBaseline <: DiscreteBaseline end
 
-function intensity(process::DiscreteMultivariateBaseline, node::Integer, time::AbstractFloat) end
-function integrated_intensity(process::DiscreteMultivariateBaseline, node::Integer, duration::AbstractFloat) end
+function intensity(process::DiscreteMultivariateBaseline, node::Integer, time::Integer) end
+function integrated_intensity(process::DiscreteMultivariateBaseline, node::Integer, duration::Integer) end
 
 
 """
@@ -1296,9 +1296,9 @@ function DiscreteLogGaussianCoxProcess(gp::GaussianProcess, m, T, n, k, dt)
 end
 
 
-ndims(p::DiscreteLogGaussianCoxProcess) = size(p.λ)[2]
-range(p::DiscreteLogGaussianCoxProcess) = p.x[1]:p.dt:(p.x[end] - p.dt)
-nsteps(p::DiscreteLogGaussianCoxProcess) = length(range(p))
+ndims(p::DiscreteLogGaussianCoxProcess) = size(p.λ, 2)
+range(p::DiscreteLogGaussianCoxProcess) = Base.range(start=p.x[1], stop=p.x[end] - p.dt, step=p.dt)
+nsteps(p::DiscreteLogGaussianCoxProcess)::Int = div(p.x[end], p.dt)
 params(p::DiscreteLogGaussianCoxProcess) = copy(vec(p.λ))
 nparams(p::DiscreteLogGaussianCoxProcess) = length(p.λ)
 
@@ -1311,34 +1311,44 @@ function params!(process::DiscreteLogGaussianCoxProcess, x)
 end
 
 function Base.rand(p::DiscreteLogGaussianCoxProcess, T::Integer)
-    T == nsteps(p) || error("Sample length does not match process duration.")
-    ts = range(p)
-    K = ndims(p)
-    λ = intensity(p, ts)
+    T == nsteps(p) || throw(ArgumentError("Sample duration should equal process duration."))
+    T < 1 && throw(DomainError("Sample duration should be a positive integer"))
+
+    λ = intensity(p, 1:T)
+    
     return Matrix(rand.(Poisson.(λ))')
 end
 
-function intensity(p::DiscreteLogGaussianCoxProcess, time::AbstractFloat)
-    return [LinearInterpolator(p.x, p.λ[:, n] * p.dt)(time) for n in 1:ndims(p)]
+function intensity(p::DiscreteLogGaussianCoxProcess, t::Integer)
+    t > nsteps(p) && throw(DomainError(t, "Time step ($t) should not exceed process duration ($(nsteps(p)))"))
+
+    return [LinearInterpolator(p.x, p.λ[:, n] * p.dt)(p.dt * (t - 1)) for n in 1:ndims(p)]
 end
 
-function intensity(p::DiscreteLogGaussianCoxProcess, node::Integer, time::AbstractFloat)
-    return LinearInterpolator(p.x, p.λ[:, node] * p.dt)(time)
+function intensity(p::DiscreteLogGaussianCoxProcess, node::Integer, t::Integer)
+    t > nsteps(p) && throw(DomainError(t, "Time step ($t) should not exceed process duration ($(nsteps(p)))"))
+
+    return LinearInterpolator(p.x, p.λ[:, node] * p.dt)(p.dt * (t - 1))
 end
 
-function intensity(p::DiscreteLogGaussianCoxProcess, times::AbstractVector{T}) where {T<:Integer}
-    λ = zeros(length(times), ndims(p))
+function intensity(p::DiscreteLogGaussianCoxProcess, ts::AbstractVector{<:Integer})
+    any(ts .> nsteps(p)) && throw(DomainError(ts, "Time steps should not exceed process duration ($(nsteps(p)))"))
+
+    λ = zeros(length(ts), ndims(p))
     for n in 1:ndims(p)
-        λ[:, n] = LinearInterpolator(p.x, p.λ[:, n] * p.dt).(times)
+        λ[:, n] = LinearInterpolator(p.x, p.λ[:, n] * p.dt).(p.dt .* (vec(ts) .- 1))
     end
+
     return λ
 end
 
-function intensity(p::DiscreteLogGaussianCoxProcess, node, times)
-    return LinearInterpolator(p.x, p.λ[:, node] * p.dt).(times)
+function intensity(p::DiscreteLogGaussianCoxProcess, node::Integer, ts::AbstractVector{<:Integer})
+    any(ts .> nsteps(p)) && throw(DomainError(ts, "Time steps should not exceed process duration ($(nsteps(p)))"))
+
+    return LinearInterpolator(p.x, p.λ[:, node] * p.dt).(p.dt .* (vec(ts) .- 1))
 end
 
-integrated_intensity(p::DiscreteLogGaussianCoxProcess, duration) = vec(sum(intensity(p, range(p)), dims=1))
+integrated_intensity(p::DiscreteLogGaussianCoxProcess, duration) = vec(sum(intensity(p, 1:nsteps(p)), dims=1))
 
 function loglikelihood(p::DiscreteLogGaussianCoxProcess, data, node)
     """
@@ -1349,8 +1359,7 @@ function loglikelihood(p::DiscreteLogGaussianCoxProcess, data, node)
     # Arguments
     - `data::Array{Int64,2}`: `N x nsteps(p)` event counts array.
     """
-    times = range(p)
-    λ = intensity(p, node, times)
+    λ = intensity(p, node, 1:nsteps(p))
     ll = 0.0
     for t in 1:length(times)
         ll += log(pdf(Poisson(λ[t]), data[node, t]))
