@@ -29,6 +29,7 @@ include("weights.jl")
 include("networks.jl")
 include("continuous.jl")
 include("discrete.jl")
+include("independent.jl")
 include("parents.jl")
 include("inference.jl")
 include("plotting.jl")
@@ -59,6 +60,8 @@ export HawkesProcess,
        DiscreteMultivariateBaseline,
        DiscreteHomogeneousProcess,
        DiscreteLogGaussianCoxProcess,
+       IndependentHawkesProcess,
+       Independent,
        ImpulseResponse,
        ContinuousImpulseResponse,
        ContinuousUnivariateImpulseResponse,
