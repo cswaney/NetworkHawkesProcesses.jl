@@ -77,6 +77,17 @@ function UnivariateGaussianImpulseResponse(θ::Vector{T}, nlags::Integer, dt=1.0
     return UnivariateGaussianImpulseResponse{T}(θ, 1.0, ones(size(θ)), nlags, dt, nothing)
 end
 
+function multivariate(process::UnivariateGaussianImpulseResponse, params)
+    n = length(params)
+    b = nbasis(process)
+    θ = zeros(n, n, b)
+    for i = 1:n
+        θ[i, i, :] .= params[i]
+    end
+
+    return DiscreteGaussianImpulseResponse(θ, process.nlags, process.dt)
+end
+
 nbasis(impulse::UnivariateGaussianImpulseResponse) = length(impulse.θ)
 nlags(impulse::UnivariateGaussianImpulseResponse) = impulse.nlags
 nparams(impulse::UnivariateGaussianImpulseResponse) = length(impulse.θ)
@@ -670,7 +681,11 @@ mutable struct DiscreteGaussianImpulseResponse <: DiscreteMultivariateImpulseRes
 end
 
 function DiscreteGaussianImpulseResponse(θ, nlags, dt=1.0)
-    all(sum(θ, dims=3) .== 1.0) || error("Invalid discrete basis parameter.")
+    # all(sum(θ, dims=3) .== 1.0) || error("Invalid discrete basis parameter.")
+    # all(in.(sum(θ, dims=3), Ref([0.0, 1.0]))) || throw(ArgumentError("Basis parameters should sum to 0.0 or 1.0 ($(sum(θ, dims=3)))."))
+    sums = sum(θ; dims=3)
+    all([isapprox(sums[i], 0.0) || isapprox(sums[i], 1.0) for i in eachindex(sums)]) || throw(ArgumentError("Basis parameters should sum to 0.0 or 1.0 ($(sum(θ, dims=3)))."))
+    
     γ = 1.0
     γv = ones(size(θ))
     impulse = DiscreteGaussianImpulseResponse(θ, γ, γv, nlags, dt, nothing)
