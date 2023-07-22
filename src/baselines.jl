@@ -738,6 +738,8 @@ end
 
 integrated_intensity(p::LogGaussianCoxProcess, duration::AbstractFloat) = integrate.([LinearInterpolator(p.x, p.λ[k]) for k in 1:ndims(p)])
 
+integrated_intensity(p::LogGaussianCoxProcess, node::Integer, duration::AbstractFloat) = integrate(LinearInterpolator(p.x, p.λ[node]))
+
 
 """
     DiscreteUnivariateHomogeneousProcess
