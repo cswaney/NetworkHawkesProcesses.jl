@@ -1,6 +1,3 @@
-import Base.rand
-import Base.ndims
-
 abstract type Weights end
 
 function ndims(model::Weights) end
@@ -60,17 +57,26 @@ end
 
 
 """
-    UnivariateWeightModel(w, α0, β0, αv, βv)
-    UnivariateWeightModel(w)
+    UnivariateWeightModel{T<:AbstractFloat} <: Weights
 
-A simple univariate weight model with gamma prior, `w ~ Gamma(α0, β0)`.
+A univariate weight model with gamma prior, i.e., ``w \\sim \\text{Ga}(\\alpha_0, \\beta_0)``.
+
+The model supports mean-field variational inference via a ``\\text{Ga}(\\alpha^v, \\beta^v)`` variational distribution.
 
 ### Arguments
-- `w::AbstractFloat`: non-negative weight parameter
-- `α0::AbstractFloat`: positive shape hyperparameter (default: 1.0)
-- `β0::AbstractFloat`: positive rate hyperparameter (default: 1.0)
-- `αv::AbstractFloat`: positive shape variational parameter (default: 1.0)
-- `βv::AbstractFloat`: positive rate variational parameter (default: 1.0)
+- `w::AbstractFloat`: a non-negative weight parameter.
+- `α0::AbstractFloat`: a positive shape hyperparameter (default: 1.0).
+- `β0::AbstractFloat`: a positive rate hyperparameter (default: 1.0).
+- `αv::AbstractFloat`: a positive shape variational parameter (default: 1.0).
+- `βv::AbstractFloat`: a positive rate variational parameter (default: 1.0).
+
+### Examples
+```jldoctest; output = false
+weights = UnivariateWeightModel(0.5)
+
+# output
+UnivariateWeightModel{Float64}(0.5, 1.0, 1.0, 1.0, 1.0)
+```
 """
 mutable struct UnivariateWeightModel{T<:AbstractFloat} <: Weights
     w::T
@@ -99,6 +105,7 @@ function multivariate(model::UnivariateWeightModel, params)
     return DenseWeightModel(W)
 end
 
+ndims(model::UnivariateWeightModel) = 1
 nparams(model::UnivariateWeightModel) = 1
 params(model::UnivariateWeightModel) = [model.w]
 
@@ -170,23 +177,32 @@ q(model::UnivariateWeightModel) = Gamma(model.αv, 1 / model.βv)
 
 
 """
-    DenseWeightModel(W, κ, ν, κv, νv)
-    DenseWeightModel(W)
+    DenseWeightModel{T<:AbstractFloat} <: MultivariateWeightModel
 
-A dense multivariate weight model to be used with standard Hawkes processes. The model assumes a fully-connected network with a shared gamma prior for each connection weight:
+An ``N``-dimensional weight model that assume a fully-connected network with a shared gamma prior for each connection weight parameter:
 
+```math
+W_{n, m} \\sim \\text{Ga}(\\kappa, \\nu)
 ```
-W[i, j] ~ Gamma(κ, 1 / ν)
-```
 
-for all `i, j`.
+for all ``n, m = 1, \\dots, N``.
+
+The model supports mean-field variational inference via ``\\text{Ga}(\\kappa^v_{n,m}, \\nu^v_{n, m})`` variational distributions for each connection weight, ``W_{n,m}``.
 
 ### Arguments
-- `W::Matrix{T<:AbstractFloat}`: non-negataive weight parameters
-- `κ::AbstractFloat`: shared, positive shape hyperparameter (default: 1.0)
-- `ν::AbstractFloat`: shared, positive rate hyperparameter (default: 1.0)
-- `κv::Matrix{T<:AbstractFloat}`: positive variational shape parameter (default: ones(size(W)))
-- `νv::Matrix{T<:AbstractFloat}`: positive variational rate parameter (default: ones(size(W)))
+- `W::Matrix{<:AbstractFloat}`: a non-negataive weight parameter matrix.
+- `κ::AbstractFloat`: a shared, positive shape hyperparameter (default: `1.0`).
+- `ν::AbstractFloat`: a shared, positive rate hyperparameter (default: `1.0`).
+- `κv::Matrix{<:AbstractFloat}`: a positive variational shape parameter (default: `ones(size(W))`).
+- `νv::Matrix{<:AbstractFloat}`: a positive variational rate parameter (default: `ones(size(W))`).
+
+### Examples
+```jldoctest; output = false
+weights = DenseWeightModel([0.5 0.25; 0.25 0.5])
+
+# output
+DenseWeightModel{Float64}([0.5 0.25; 0.25 0.5], 1.0, 1.0, [1.0 1.0; 1.0 1.0], [1.0 1.0; 1.0 1.0])
+```
 """
 mutable struct DenseWeightModel{T<:AbstractFloat} <: MultivariateWeightModel
     W::Matrix{T}
@@ -257,30 +273,41 @@ end
 
 
 """
-    SpikeAndSlabWeightModel(W, κ0, ν0, κ1, ν1, κv0, vv0, κv1, vv1, ρv)
-    SpikeAndSlabWeightModel(W)
+    SpikeAndSlabWeightModel{T<:AbstractFloat} <: MultivariateWeightModel
 
-A spike-and-slab multivariate weight model to be used with network Hawkes processes. The model assumes a sparse network with a shared gamma-mixture prior for each connection weight:
+An ``N``-dimensional "spike-and-slab" weight model that assumes a sparse network with a shared gamma-mixture prior over connection weights:
 
+```math
+\\begin{aligned}
+A_{n,m} &\\sim \\text{Bern}(\\rho) \\\\
+W_{n,m} \\ | \\ A_{n,m} = 0 &\\sim \\text{Ga}(\\kappa_{0}, \\nu_{0}) \\\\
+W_{n,m} \\ | \\ A_{n,m} = 1 &\\sim \\text{Ga}(\\kappa_{1}, \\nu_{1}) \\\\
 ```
-A[i, j] ~ Bernoulli(ρ)
-W[i, j | A[i, j] == 0] ~ Gamma(κ0, 1 / ν0)
-W[i, j | A[i, j] == 1] ~ Gamma(κ1, 1 / ν1)
-```
 
-for all `i, j`. The default hyperparameter `(κ0, ν0) = (.1, 10.)` are set to induce an approximately sparse weight matrix (`mean(Gamma(.1, 1 / 10.)) == 0.01`).
+for all ``n, m = 1, \\dots, N``. The default hyperparameters ``\\kappa_{0} = 0.1`` and ``\\nu_0 = 10.0`` are selected to induce an approximately sparse weight matrix.
+
+### Details
+For mean-field variational inference the model uses a gamma-mixture variational distribution with parameters ``\\rho_v, \\kappa^v_0, \\nu^v_0, \\kappa^v_1,`` and ``\\nu^v_1`` matching their hyperparameter counterparts above.
 
 ### Arguments
-- `W::Matrix{T<:AbstractFloat}`: non-negataive weight parameters
-- `κ0::AbstractFloat`: shared, positive shape hyperparameter (default: 0.1)
-- `ν0::AbstractFloat`: shared, positive rate hyperparameter (default: 10.0)
-- `κ1::AbstractFloat`: shared, positive shape hyperparameter (default: 1.0)
-- `ν1::AbstractFloat`: shared, positive rate hyperparameter (default: 1.0)
-- `κv0::Matrix{T<:AbstractFloat}`: positive variational shape parameters (default: 0.1 * ones(size(W)))
-- `νv0::Matrix{T<:AbstractFloat}`: positive variational rate parameters (default: 10 * ones(size(W)))
-- `κv1::Matrix{T<:AbstractFloat}`: positive variational shape parameters (default: ones(size(W)))
-- `νv1::Matrix{T<:AbstractFloat}`: positive variational rate parameters (default: ones(size(W)))
-- `ρv::Matrix{T<:AbstractFloat}`: unit-range variational connection rate parameters (default: 0.5 * ones(size(W)))
+- `W::Matrix{<:AbstractFloat}`: a non-negative weight parameter matrix.
+- `κ0::AbstractFloat`: a shared, positive shape hyperparameter (default: `0.1`).
+- `ν0::AbstractFloat`: a shared, positive rate hyperparameter (default: `10.0`).
+- `κ1::AbstractFloat`: a shared, positive shape hyperparameter (default: `1.0`).
+- `ν1::AbstractFloat`: a shared, positive rate hyperparameter (default: `1.0`).
+- `κv0::Matrix{:AbstractFloat}`: a positive variational shape parameters (default: `0.1 * ones(size(W))`).
+- `νv0::Matrix{:AbstractFloat}`: a positive variational rate parameters (default: `10.0 * ones(size(W))`).
+- `κv1::Matrix{:AbstractFloat}`: a positive variational shape parameters (default: `ones(size(W))`).
+- `νv1::Matrix{:AbstractFloat}`: a positive variational rate parameters (default: `ones(size(W))`).
+- `ρv::Matrix{:AbstractFloat}`: a unit-range variational connection rate parameter matrix (default: `0.5 * ones(size(W))`).
+
+### Examples
+```jldoctest; output=false
+weights = SpikeAndSlabWeightModel([0.5 0.25; 0.25 0.5])
+
+# output
+SpikeAndSlabWeightModel{Float64}([0.5 0.25; 0.25 0.5], 0.1, 10.0, 1.0, 1.0, [0.1 0.1; 0.1 0.1], [10.0 10.0; 10.0 10.0], [1.0 1.0; 1.0 1.0], [1.0 1.0; 1.0 1.0], [0.5 0.5; 0.5 0.5])
+```
 """
 mutable struct SpikeAndSlabWeightModel{T<:AbstractFloat} <: MultivariateWeightModel
     W::Matrix{T}
