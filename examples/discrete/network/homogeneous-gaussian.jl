@@ -18,7 +18,7 @@ plink = 0.5;
 
 # create a random process
 baseline = DiscreteHomogeneousProcess(rand(nnodes), dt);
-impulses = DiscreteGaussianImpulseResponse(ones(nnodes, nnodes, nbasis) ./ nbasis, nlags, dt);
+impulses = GaussianImpulseResponse(ones(nnodes, nnodes, nbasis) ./ nbasis, nlags, dt);
 weights = DenseWeightModel(rand(nnodes, nnodes));
 network = BernoulliNetworkModel(plink, nnodes);
 links = NetworkHawkesProcesses.rand(network);

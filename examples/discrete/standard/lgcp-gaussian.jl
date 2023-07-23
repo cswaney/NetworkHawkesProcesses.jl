@@ -25,7 +25,7 @@ kernel = SquaredExponentialKernel(sigma, eta);
 gp = GaussianProcess(kernel);
 baseline = DiscreteLogGaussianCoxProcess(gp, bias, duration, nsteps, nnodes, dt);
 weights = DenseWeightModel(rand(nnodes, nnodes));
-impulses = DiscreteGaussianImpulseResponse(ones(nnodes, nnodes, nbasis) ./ nbasis, nlags, dt);
+impulses = GaussianImpulseResponse(ones(nnodes, nnodes, nbasis) ./ nbasis, nlags, dt);
 process = DiscreteStandardHawkesProcess(baseline, impulses, weights, dt);
 println("Process is stable? $(isstable(process))")
 

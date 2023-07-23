@@ -64,7 +64,7 @@ dt = 1.0
 
 baseline = NetworkHawkesProcesses.DiscreteHomogeneousProcess(ones(nnodes), dt)
 weights = NetworkHawkesProcesses.DenseWeightModel(weight .* ones(nnodes, nnodes))
-impulses = NetworkHawkesProcesses.DiscreteGaussianImpulseResponse(ones(nnodes, nnodes, nbasis) ./ nbasis, nlags, dt)
+impulses = NetworkHawkesProcesses.GaussianImpulseResponse(ones(nnodes, nnodes, nbasis) ./ nbasis, nlags, dt)
 process = NetworkHawkesProcesses.DiscreteStandardHawkesProcess(baseline, impulses, weights, dt)
 ```
 

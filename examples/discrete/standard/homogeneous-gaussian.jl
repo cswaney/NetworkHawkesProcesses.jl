@@ -18,7 +18,7 @@ dt = 1.0;
 # create a random process
 baseline = DiscreteHomogeneousProcess(rand(nnodes), dt);
 weights = DenseWeightModel(rand(nnodes, nnodes));
-impulses = DiscreteGaussianImpulseResponse(ones(nnodes, nnodes, nbasis) ./ nbasis, nlags, dt);
+impulses = GaussianImpulseResponse(ones(nnodes, nnodes, nbasis) ./ nbasis, nlags, dt);
 process = DiscreteStandardHawkesProcess(baseline, impulses, weights, dt);
 println("Process is stable? $(isstable(process))")
 

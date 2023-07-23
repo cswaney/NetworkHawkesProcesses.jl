@@ -231,14 +231,14 @@ duration = 1000;
 dt = 1.0;
 baseline = DiscreteHomogeneousProcess([1.0, 2.0], dt);
 weights = DenseWeightModel([0.1 0.2; 0.2 0.1]);
-impulses = DiscreteGaussianImpulseResponse(ones(nnodes, nnodes, nbasis) ./ nbasis, nlags, dt);
+impulses = GaussianImpulseResponse(ones(nnodes, nnodes, nbasis) ./ nbasis, nlags, dt);
 process = DiscreteStandardHawkesProcess(baseline, impulses, weights, dt);
 data = rand(process, duration);
 res = mle!(process, data; verbose=true, regularize=false); # or mcmc!, vb!
 ll = loglikelihood(process, data)
 ```
 
-There are several important differences to take note of. First, we now need to choose a time step size for the process, `dt`, which is also provided to all components that involve time (i.e., the baseline, impulse-response). Second, we use a discrete-time baseline process, `DiscreteHomogeneousProcess`, which is an exact discretized analog of `HomogeneousProcess`. `NetworkHawkesProcesses` also provides a discrete-time version of the non-homogeneous log Gaussian Cox process,  `DiscreteLogGaussianCoxProcess`. Third, we instantiate a discrete-time impulse response, `DiscreteGaussianImpulseResponse`, which has no continuous-time analog and is explained in detail below. Finally, `data` is now a `Matrix{Int64}` of size `nnodes x duration` containing event counts for each node along its rows. (Unlike the continuous-time model, we don't need to return nodes, events, and duration separately because they are implied by the data matrix dimensions).
+There are several important differences to take note of. First, we now need to choose a time step size for the process, `dt`, which is also provided to all components that involve time (i.e., the baseline, impulse-response). Second, we use a discrete-time baseline process, `DiscreteHomogeneousProcess`, which is an exact discretized analog of `HomogeneousProcess`. `NetworkHawkesProcesses` also provides a discrete-time version of the non-homogeneous log Gaussian Cox process,  `DiscreteLogGaussianCoxProcess`. Third, we instantiate a discrete-time impulse response, `GaussianImpulseResponse`, which has no continuous-time analog and is explained in detail below. Finally, `data` is now a `Matrix{Int64}` of size `nnodes x duration` containing event counts for each node along its rows. (Unlike the continuous-time model, we don't need to return nodes, events, and duration separately because they are implied by the data matrix dimensions).
 
 ![Discrete-time Data](./assets/img/discrete-data.svg)
 
@@ -250,7 +250,7 @@ Whereas continuous-time impulse responses are typically determined by probabilit
 \sum_{b=1}^B \theta_{n \rightarrow n'}^{(b)} = 1
 ```
 
-The discretized Gaussian family of basis functions is the only family currently provided by `NetworkHawkesProcesses` via the `DiscreteGaussianImpulseResponse` type. It's members are defined by
+The discretized Gaussian family of basis functions is the only family currently provided by `NetworkHawkesProcesses` via the `GaussianImpulseResponse` type. It's members are defined by
 ```math
 \phi_b[d] = \frac{\exp \{ -\frac{1}{2} \left( d - \mu_b \right)^2 \} }{\Delta t \cdot Z}
 ```

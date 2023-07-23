@@ -62,7 +62,7 @@ nlags = 4;
 duration = 1000;
 dt = 1.0;
 baseline = DiscreteHomogeneousProcess([1.0, 2.0], dt);
-impulse_response = DiscreteGaussianImpulseResponse(ones(nnodes, nnodes, nbasis) ./ nbasis, nlags, dt);
+impulse_response = GaussianImpulseResponse(ones(nnodes, nnodes, nbasis) ./ nbasis, nlags, dt);
 weight_model = DenseWeightModel([0.1 0.2; 0.2 0.1]);
 process = DiscreteStandardHawkesProcess(baseline, impulse_response, weight_model, dt);
 isstable(process)
