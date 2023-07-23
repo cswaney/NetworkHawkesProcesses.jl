@@ -2,6 +2,9 @@ using Pkg
 # Pkg.activate("..")
 Pkg.activate(".")
 using Documenter, NetworkHawkesProcesses
+using NetworkHawkesProcesses: SquaredExponentialKernel, GaussianProcess
+
+DocMeta.setdocmeta!(NetworkHawkesProcesses, :DocTestSetup, :(using NetworkHawkesProcesses; using NetworkHawkesProcesses: SquaredExponentialKernel, GaussianProcess); recursive=true)
 
 makedocs(
     sitename="NetworkHawkesProcesses.jl",
