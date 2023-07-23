@@ -52,14 +52,31 @@ function integrated_intensity(process::DiscreteMultivariateBaseline, node::Integ
 
 
 """
-    UnivariateHomogeneousProcess
+    UnivariateHomogeneousProcess{T<:AbstractFloat} <: ContinuousUnivariateBaseline
 
-A univariate homogeneous Poisson process with constant intensity λ ~ Gamma(α0, β0).
+A continuous-time, univariate homogeneous Poisson process with constant intensity `λ ~ Gamma(α0, β0)`.
 
-# Arguments
+### Arguments
 - `λ::T`: constant, non-negative intensity parameter.
-- `α0::T`: shape parameter of Gamma prior (default: 1.0).
-- `β0::T`: rate parameter of Gamma prior (default: 1.0).
+- `α0::T`: shape hyperparameter of the Gamma prior (default: 1.0).
+- `β0::T`: rate hyperparameter of the Gamma prior (default: 1.0).
+
+### Examples
+```jldoctest; output = false
+using NetworkHawkesProcesses
+baseline = UnivariateHomogeneousProcess(1.0, 1.0, 1.0)
+
+# output
+UnivariateHomogeneousProcess{Float64}(1.0, 1.0, 1.0)
+```
+
+```jldoctest; output = false
+using NetworkHawkesProcesses
+baseline = UnivariateHomogeneousProcess(1.0) # use default hyperparameters
+
+# output
+UnivariateHomogeneousProcess{Float64}(1.0, 1.0, 1.0)
+```
 """
 mutable struct UnivariateHomogeneousProcess{T <: AbstractFloat} <: ContinuousUnivariateBaseline
     λ::T
@@ -142,19 +159,39 @@ end
 
 
 """
-    HomogeneousProcess(λ, α0, β0)
+    HomogeneousProcess{T<:AbstractFloat} <: ContinuousMultivariateBaseline
 
-A homogeneous Poisson process with constant intensity λ ~ Gamma(α0, β0).
+A continuous-time, multivariate homogeneous Poisson process with constant intensity `λ[k] ~ Gamma(α0, β0)` for all `k = 1,..., ndims(process)`.
 
-# Arguments
-- `λ`: constant intensity parameter.
-- `α0`: shape parameter of Gamma prior for Bayesian inference (default: 1.0).
-- `β0`: rate parameter of Gamma prior for Bayesian inference (default: 1.0).
+
+
+### Arguments
+- `λ::Vector{T}`: constant, non-negative intensity parameter.
+- `α0::T`: shape hyperparameter of the Gamma prior (default: 1.0).
+- `β0::T`: rate hyperparameter of the Gamma prior (default: 1.0).
+
+### Examples
+```jldoctest; output = false
+using NetworkHawkesProcesses
+baseline = HomogeneousProcess(ones(Float32, 2), 1.0f0, 1.0f0)
+
+# output
+HomogeneousProcess{Float32}(Float32[1.0, 1.0], 1.0f0, 1.0f0)
+```
+
+```jldoctest; output = false
+using NetworkHawkesProcesses
+baseline = HomogeneousProcess(ones(3)) # use default hyperparameters
+
+# output
+HomogeneousProcess{Float64}([1.0, 1.0, 1.0], 1.0, 1.0)
+```
 """
 mutable struct HomogeneousProcess{T<:AbstractFloat} <: ContinuousMultivariateBaseline
     λ::Vector{T}
     α0::T
     β0::T
+    
     function HomogeneousProcess{T}(λ, α0, β0) where T <: AbstractFloat
         any(λ .< 0) && throw(DomainError(λ, "intensity parameter λ must be non-negative"))
         α0 > 0 || throw(DomainError(α0, "shape parameter α0 must be positive"))
@@ -178,24 +215,24 @@ function params!(process::HomogeneousProcess, x)
     end
 end
 
-"""
-    rand(process::HomogeneousProcess, duration)
-
-Sample a random sequence of events from a homogeneous Poisson process.
-
-# Arguments
-- `duration`: the sampling duration.
-
-# Returns
-- `data::tuple{Vector{Float64},Vector{Int64},T}`: sampled events, nodes and duration data.
-
-# Example
-```julia
-p = HomogeneousProcess(ones(2))
-events, nodes, duration = rand(p, 100.0)
-````
-"""
 function Base.rand(process::HomogeneousProcess, duration::AbstractFloat)
+    """
+        rand(process::HomogeneousProcess, duration)
+    
+    Sample a random sequence of events from a homogeneous Poisson process.
+    
+    # Arguments
+    - `duration`: the sampling duration.
+    
+    # Returns
+    - `data::tuple{Vector{Float64},Vector{Int64},T}`: sampled events, nodes and duration data.
+    
+    # Example
+    ```julia
+    p = HomogeneousProcess(ones(2))
+    events, nodes, duration = rand(p, 100.0)
+    ````
+    """
     duration < 0.0 && throw(DomainError("Sampling duration must be non-negative ($(duration))"))
     nnodes = ndims(process)
     events = Array{Array{Float64,1},1}(undef, nnodes)
@@ -211,19 +248,19 @@ function Base.rand(process::HomogeneousProcess, duration::AbstractFloat)
     return events[idx], nodes[idx], duration
 end
 
-"""
-    rand(process::HomogeneousProcess, node, duration)
-
-Sample a random sequence of events from a single node of a homogeneous Poisson process.
-
-# Arguments
-- `node`: the node to sample.
-- `duration`: the sampling duration.
-
-# Returns
-- `data::Vector{Float64}`: sampled events data.
-"""
 function rand(process::HomogeneousProcess, node::Integer, duration::AbstractFloat)
+    """
+        rand(process::HomogeneousProcess, node, duration)
+    
+    Sample a random sequence of events from a single node of a homogeneous Poisson process.
+    
+    # Arguments
+    - `node`: the node to sample.
+    - `duration`: the sampling duration.
+    
+    # Returns
+    - `data::Vector{Float64}`: sampled events data.
+    """
     duration < 0.0 && throw(DomainError("Sampling duration must be non-negative ($(duration))"))
     n = rand(Poisson(process.λ[node] * duration))
     return sort(rand(Uniform(0, duration), n))
@@ -284,28 +321,60 @@ end
 
 
 """
-    UnivariateLogGaussianCoxProcess(x, λ, Σ, m)
+    UnivariateLogGaussianCoxProcess{T<:AbstractFloat} <: ContinuousUnivariateBaseline
 
-A univariate log Gaussian Cox process.
+A continuous-time, univariate log Gaussian Cox process.
 
-### Description
-The data generating process is
+### Details
+A log Gaussian Cox process is a Poisson process whose intensity is an exponentiated realization of a Gaussian process. The data generating process is
 
-    y ~ GP(0, K)
-    λ(t) = exp(m + y(t))
-    s ~ PP(λ(t))
+```math
+\\begin{aligned}
+    y &\\sim \\mathcal{GP}(0, K) \\\\
+    λ(t) &= \\exp(m + y(t)) \\\\
+    s &\\sim \\mathcal{PP}(λ(t)),
+\\end{aligned}
+```
 
-For an sequence of gridpoints, `x[1] = 0.0, ..., x[N]`, a corresponding sample of the Gaussian process, `y[1], ..., y[N]`, has a `N(0, Σ)` distribution, where
+where the Gaussian process is the *prior* distribution over ``y`` having the *function* ``K`` and scalar ``m`` as hyperparameters.
 
-    Σ[i, j] = K(x[i], x[j])
+Sampling a log Gaussian Cox process works as follows. First, we select a sequence of gridpoints, ``x_{1:T}``. Next, we draw a sample of the Gaussian process ``\\mathcal{GP}(0, K)``,
 
-The process is sampled via linear interpolation between intensity values `λ[1], ..., λ[N]`.
+```math
+y_{1:T} \\sim \\mathcal{N}(0, \\Sigma),
+```
+
+where
+
+```math
+\\Sigma_{t, s} = K(x_t, x_s)
+```
+
+Finally, the intensity of the process is calculated via linear interpolation of the values ``\\lambda_{1:T} = \\exp(m + y_{1:T})`` and samples are drawn using rejection sampling.
 
 ### Arguments
-- `x::Vector{<:AbstractFloat}`: gridpoints [0.0, ..., T].
-- `λ::Vector{<:AbstractFloat}`: non-negative intensity parameter.
-- `Σ::PdMat{<:AbstractFloat}`: positive definite covariance matrix.
-- `m::AbstractFloat`: offset hyperparameter.
+- `x::Vector{T}`: a sequence of gridpoints ``x_1 = 0, \\dots, x_N``.
+- `λ::Vector{T}`: a non-negative intensity parameter.
+- `Σ::PDMat{T}`: a positive definite covariance hyperparameter.
+- `m::T`: an offset hyperparameter (default: 0.0).
+
+### Examples
+```jldoctest
+using NetworkHawkesProcesses
+using NetworkHawkesProcesses: SquaredExponentialKernel, GaussianProcess
+kernel = SquaredExponentialKernel(1.0, 1.0)
+gp = GaussianProcess(kernel)
+x = collect(0.0:1.0:10.)
+Σ = cov(gp, x)
+y = rand(gp, x; sigma=Σ)
+λ = exp.(0.0 .+ y)
+baseline = UnivariateLogGaussianCoxProcess(x, λ, Σ, 0.0)
+# or
+baseline = UnivariateLogGaussianCoxProcess(gp, 10.0, 10, 0.0)
+```
+
+### References
+- [J. Møller, A. R. Syversveen, and R. P. Waagepetersen. Log Gaussian Cox Processes. Scandinavian journal of statistics, 25(3):451–482, 1998.](https://onlinelibrary.wiley.com/doi/10.1111/1467-9469.00115)
 """
 struct UnivariateLogGaussianCoxProcess{T<:AbstractFloat} <: ContinuousUnivariateBaseline
     x::Vector{T}
@@ -336,16 +405,18 @@ UnivariateLogGaussianCoxProcess(
 ) where {T<:AbstractFloat} = UnivariateLogGaussianCoxProcess{T}(x, λ, K(x), m)
 
 """
-    UnivariateLogGaussianCoxProcess(gp::GaussianProcess, duration, nsteps, m)
+    UnivariateLogGaussianCoxProcess(gp::GaussianProcess, duration::AbstractFloat, nsteps::Integer, m::AbstractFloat)
 
-Construct a log Gaussian Cox process with intensity randomly sampled from a Gaussian process along gridpoints evenly distributed between `0.0` and `duration`.
+Construct a log Gaussian Cox process whose intensity is sampled from a Gaussian process at `nsteps` gridpoints evenly distributed between `0.0` and `duration`.
 
 ### Example
-kernel = SquaredExponentialKernel(1.0, 1.0)
-gp = GaussianProcess(kernel)
+```julia
+kernel = NetworkHawkesProcesses.SquaredExponentialKernel(1.0, 1.0)
+gp = NetworkHawkesProcesses.GaussianProcess(kernel)
 baseline = UnivariateLogGaussianCoxProcess(gp, 100.0, 10)
+```
 """
-function UnivariateLogGaussianCoxProcess(gp::GaussianProcess, duration::AbstractFloat, nsteps::Integer, m::T=0.0) where {T<:AbstractFloat}
+function UnivariateLogGaussianCoxProcess(gp::GaussianProcess, duration::AbstractFloat, nsteps::Integer, m::AbstractFloat=0.0)
     duration > 0.0 || throw(DomainError(duration, "Duration should be positive"))
     nsteps > 0 || throw(DomainError(nsteps, "Number of steps should be  a positive integer"))
 
@@ -373,7 +444,7 @@ function params!(process::UnivariateLogGaussianCoxProcess, x)
     return params(process)
 end
 
-function Base.rand(process::UnivariateLogGaussianCoxProcess, duration::AbstractFloat)
+function rand(process::UnivariateLogGaussianCoxProcess, duration::AbstractFloat)
     length(process) != duration && throw(ArgumentError("Sample duration should equal process duration."))
 
     f = LinearInterpolator(process.x, process.λ)
@@ -481,28 +552,35 @@ integrated_intensity(p::UnivariateLogGaussianCoxProcess, duration::AbstractFloat
 
 
 """
-    LogGaussianCoxProcess(x, λ, Σ, m)
+    LogGaussianCoxProcess{T<:AbstractFloat}(x, λ, Σ, m) <: ContinuousMultivariateBaseline
 
-A log Gaussian Cox process constructed from a realization of a Gaussian process at fixed gridpoints.
+A continuous-time, multivariate log Gaussian Cox process.
 
-### Description
-The data generating process is
+### Details
+The process consists of `ndims(process)` *independent* log Gaussian Cox processes with a shared Gaussian process prior that is sampled along a common sequence of gridpoints, ``x_{1:T}``.
 
-    y ~ GP(0, K)
-    λ(t) = exp(m + y(t))
-    s ~ PP(λ(t))
+See [`UnivariateLogGaussianCoxProcess`](@ref) for details of the log Gaussian Cox data generating process.
 
-For an arbitrary set of gridpoints, `x[1], ..., x[N]`, a corresponding sample of the Gaussian process, `y[1], ..., y[N]`, has a `N(0, Σ)` distribution, where
+### Arguments
+- `x::Vector{T}`: a sequence of gridpoints ``x_1 = 0, \\dots, x_N``.
+- `λ::Vector{Vector{T}}`: non-negative intensity parameters.
+- `Σ::PDMat{T}`: a positive definite covariance hyperparameter.
+- `m::T`: an offset hyperparameter (default: 0.0).
 
-    Σ[i, j] = K(x[i], x[j])
-
-The process is sampled by interpolating between intensity values `λ[1], ..., λ[N]`.
-
-### Fields
-- `x::Vector{T<:AbstractFloat}`: a strictly increasing vectors of sampling grid points starting from x[1] = 0.0.
-- `λ::Vector{Vector{T<:AbstractFloat}}`: a list of non-negative intensity vectors such that `λ[k][i] = λ[k]([x[i])`.
-- `Σ::PDMat{T<:AbstractFloat}`: a positive-definite variance matrix.
-- `m::Vector{T<:AbstractFloat}`: intensity offsets equal to `log(λ0)` of homogeneous processes.
+### Examples
+```jldoctest
+using NetworkHawkesProcesses
+using NetworkHawkesProcesses: SquaredExponentialKernel, GaussianProcess
+kernel = SquaredExponentialKernel(1.0, 1.0)
+gp = GaussianProcess(kernel)
+x = collect(0.0:1.0:10.)
+Σ = cov(gp, x)
+y = [rand(gp, x; sigma=Σ), rand(gp, x; sigma=Σ)]
+λ = [exp.(0.0 .+ y[1], exp.(0.0 .+ y[2])]
+baseline = LogGaussianCoxProcess(x, λ, Σ, 0.0)
+# or
+baseline = LogGaussianCoxProcess(gp, 10.0, 10, 0.0)
+```
 """
 struct LogGaussianCoxProcess{T<:AbstractFloat} <: ContinuousMultivariateBaseline
     x::Vector{T}
@@ -557,28 +635,28 @@ function params!(process::LogGaussianCoxProcess, x)
     end
 end
 
-"""
-    rand(process::LogGaussianCoxProcess, duration)
-
-Sample a random sequence of events from a log Gaussian Cox process.
-
-# Arguments
-- `duration`: the sampling duration.
-
-# Returns
-- `data::tuple{Vector{Float64},Vector{Int64},T}`: sampled events, nodes and duration data.
-
-# Example
-```julia
-kernel = SquaredExponentialKernel(1.0, 1.0)
-gp = GaussianProcess(kernel)
-x = collect(0.0:0.1:10.0)
-y = rand(gp, x)
-λ = [exp.(y)]
-p = LogGaussianCoxProcess(x, λ, kernel, 0.0)
-events, nodes, duration = rand(p, 10.0)
-"""
-function Base.rand(process::LogGaussianCoxProcess, duration::AbstractFloat)
+function rand(process::LogGaussianCoxProcess, duration::AbstractFloat)
+    """
+        rand(process::LogGaussianCoxProcess, duration)
+    
+    Sample a random sequence of events from a log Gaussian Cox process.
+    
+    # Arguments
+    - `duration`: the sampling duration.
+    
+    # Returns
+    - `data::tuple{Vector{Float64},Vector{Int64},T}`: sampled events, nodes and duration data.
+    
+    # Example
+    ```julia
+    kernel = SquaredExponentialKernel(1.0, 1.0)
+    gp = GaussianProcess(kernel)
+    x = collect(0.0:0.1:10.0)
+    y = rand(gp, x)
+    λ = [exp.(y)]
+    p = LogGaussianCoxProcess(x, λ, kernel, 0.0)
+    events, nodes, duration = rand(p, 10.0)
+    """
     length(process) != duration && throw(ArgumentError("Sample duration does not match process duration."))
     nnodes = ndims(process)
     events = Array{Array{Float64,1},1}(undef, nnodes)
@@ -594,19 +672,19 @@ function Base.rand(process::LogGaussianCoxProcess, duration::AbstractFloat)
     return events[idx], nodes[idx], duration
 end
 
-"""
-    rand(process::LogGaussianCoxProcess, node, duration)
-
-Sample a random sequence of events from a single node of a log Gaussian Cox process.
-
-# Arguments
-- `node`: the node to sample.
-- `duration`: the sampling duration.
-
-# Returns
-- `data::Vector{Float64}`: sampled events data.
-"""
-function Base.rand(process::LogGaussianCoxProcess, node::Integer, duration::AbstractFloat)
+function rand(process::LogGaussianCoxProcess, node::Integer, duration::AbstractFloat)
+    """
+        rand(process::LogGaussianCoxProcess, node, duration)
+    
+    Sample a random sequence of events from a single node of a log Gaussian Cox process.
+    
+    # Arguments
+    - `node`: the node to sample.
+    - `duration`: the sampling duration.
+    
+    # Returns
+    - `data::Vector{Float64}`: sampled events data.
+    """
     length(process) != duration && throw(ArgumentError("Sample duration does not match process duration."))
     f = LinearInterpolator(process.x, process.λ[node])
     return rejection_sample(f, rand(Poisson(integrate(f))))
@@ -742,22 +820,20 @@ integrated_intensity(p::LogGaussianCoxProcess, node::Integer, duration::Abstract
 
 
 """
-    DiscreteUnivariateHomogeneousProcess
+    DiscreteUnivariateHomogeneousProcess{T <: AbstractFloat} <: DiscreteUnivariateBaseline
 
-A discrete-time homogeneous Poisson process.
-
-Supports Bayesian inference of the probabilistic model:
+A discrete-time homogeneous Poisson process that supports Bayesian inference for the probabilistic model:
 
     λ ~ Gamma(λ[i] | α0, β0)
     x[t] ~ Poisson(x[t] | λ * dt) (t = 1, ...)
 
 ### Arguments
-- `λ::AbstractFloat`
-- `α0::AbstractFloat`
-- `β0::AbstractFloat`
-- `αv::AbstractFloat`
-- `βv::AbstractFloat`
-- `dt::AbstractFloat
+- `λ::T`
+- `α0::T`
+- `β0::T`
+- `αv::T`
+- `βv::T`
+- `dt::T`
 """
 mutable struct DiscreteUnivariateHomogeneousProcess{T<:AbstractFloat} <: DiscreteUnivariateBaseline
     λ::AbstractFloat
@@ -869,20 +945,18 @@ end
 
 
 """
-    DiscreteHomogeneousProcess
+    DiscreteHomogeneousProcess{T <: AbstractFloat} <: DiscreteMultivariateBaseline
 
-A discrete, homogeneous Poisson process.
-
-The model supports Bayesian inference of the probabilistic model:
+A discrete, homogeneous Poisson process that supports Bayesian inference for the probabilistic model:
 
     λ[i] ~ Gamma(λ[i] | α0, β0) (i = 1, ..., N)
     x[i, t] ~ Poisson(x[i, t] | λ[i] * dt) (t = 1, ..., T)
 
-# Arguments
-- `λ::Vector{Float64}`: a vector of intensities.
-- `α0::Float64`: the shape parameter of the Gamma prior.
-- `β0::Float64`: the inverse-scale (i.e., rate) parameter of the Gamma prior.
-- `dt::Float64`: the physical time represented by each time step, `t`.
+### Arguments
+- `λ::Vector{T}`: a vector of intensities.
+- `α0::T`: the shape parameter of the Gamma prior.
+- `β0::T`: the inverse-scale (i.e., rate) parameter of the Gamma prior.
+- `dt::T`: the physical time represented by each time step, `t`.
 """
 mutable struct DiscreteHomogeneousProcess{T<:AbstractFloat} <: DiscreteMultivariateBaseline
     λ::Vector{T}
@@ -929,24 +1003,24 @@ end
 
 variational_params(p::DiscreteHomogeneousProcess) = [copy(p.αv); copy(p.βv)]
 
-"""
-    rand(process::DiscreteHomogeneousProcess, T::Integer)
-
-Sample a random sequence of events from a discrete homogeneous Poisson process.
-
-# Arguments
-- `T::Integer`: the sampling duration as a number of discrete time steps.
-
-# Returns
-- `data::Matrix{Int64}`: an `nchannels x nsteps` matrix of sampled events.
-
-# Example
-```julia
-p = DiscreteHomogeneousProcess(ones(2))
-data = rand(p, 100)
-````
-"""
-function Base.rand(p::DiscreteHomogeneousProcess, T::Integer)
+function rand(p::DiscreteHomogeneousProcess, T::Integer)
+    """
+        rand(process::DiscreteHomogeneousProcess, T::Integer)
+    
+    Sample a random sequence of events from a discrete homogeneous Poisson process.
+    
+    # Arguments
+    - `T::Integer`: the sampling duration as a number of discrete time steps.
+    
+    # Returns
+    - `data::Matrix{Int64}`: an `nchannels x nsteps` matrix of sampled events.
+    
+    # Example
+    ```julia
+    p = DiscreteHomogeneousProcess(ones(2))
+    data = rand(p, 100)
+    ````
+    """
     T < 0 && throw(DomainError(T, "Number of time steps must be non-negative"))
     return vcat(transpose(rand.(Poisson.(p.λ .* p.dt), T))...)
 end
@@ -1164,16 +1238,16 @@ function loglikelihood(p::DiscreteUnivariateLogGaussianCoxProcess, data::Vector{
     return sum(log.(pdf.(Poisson.(λ), data)))
 end
 
-"""
-   loglikelihood(p::DiscreteUnivariateLogGaussianCoxProcess, data, y)
-
-Compute the log likelihood of a discrete, univariate log Gaussian Cox process with intensity `λ[t] = exp(m + y[t])`.
-
-### Arguments
-- `data::Vector{Int}`: length-`nsteps(p)` event counts array.
-- `y::Vector{<:AbstractFloat}`: a length-`length(p.λ)` Gaussian process sample.
-"""
 function loglikelihood(p::DiscreteUnivariateLogGaussianCoxProcess, data::Vector{Int}, y::Vector{<:AbstractFloat})
+    """
+       loglikelihood(p::DiscreteUnivariateLogGaussianCoxProcess, data, y)
+    
+    Compute the log likelihood of a discrete, univariate log Gaussian Cox process with intensity `λ[t] = exp(m + y[t])`.
+    
+    ### Arguments
+    - `data::Vector{Int}`: length-`nsteps(p)` event counts array.
+    - `y::Vector{<:AbstractFloat}`: a length-`length(p.λ)` Gaussian process sample.
+    """
     λ = LinearInterpolator(p.x, exp.(p.m .+ y) .* p.dt).(range(p))
 
     return sum(log.(pdf.(Poisson.(λ), data)))
