@@ -20,6 +20,42 @@ using SpecialFunctions
 
 abstract type HawkesProcess end
 
+"""
+    ndims(process::HawkesProcess)
+
+Return the number of dimensions of `process`.
+"""
+function ndims(process::HawkesProcess) end
+
+"""
+    nparams(process::HawkesProcess)
+
+Return the number of trainable parameters of `process`.
+"""
+function nparams(process::HawkesProcess) end
+
+"""
+    isstable(process::HawkesProcess)
+
+Check if a process is stable. If `false`, the process may "blow up" (i.e., fail to generate a finite samples).
+"""
+function isstable(process::HawkesProcess) end
+
+"""
+    params(process::HawkesProcess)
+
+Return a copy of the trainable parameters of `process` as a vector.
+"""
+function params(process::HawkesProcess) end
+
+"""
+    params!(process::HawkesProcess, x)
+
+Set the trainable parameters of a process to `x`, where `x` is assumed to follow the same order as `params(process)`.
+"""
+function params!(process::HawkesProcess, x) end
+
+
 include("utils/helpers.jl")
 include("utils/interpolation.jl")
 include("utils/gaussian.jl")
@@ -75,16 +111,17 @@ export HawkesProcess,
        ExponentialImpulseResponse,
        UnivariateGaussianImpulseResponse,
        DiscreteGaussianImpulseResponse,
-       DenseNetworkModel,
+       Weights,
        UnivariateWeightModel,
        DenseWeightModel,
        SpikeAndSlabWeightModel,
        DenseNetworkModel,
        BernoulliNetworkModel,
+       isstable,
+       nparams,
        params,
        params!,
        rand,
-       isstable,
        intensity,
        loglikelihood,
        logprior,
