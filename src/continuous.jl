@@ -1,52 +1,44 @@
 abstract type ContinuousHawkesProcess <: HawkesProcess end
 
 """
-    isstable(process::ContinuousHawkesProcess)
+    rand(process::ContinuousHawkesProcess, duration::AbstractFloat)
 
-Check if a continuous Hawkes process is stable.
-"""
-function isstable(process::ContinuousHawkesProcess) end
+Sample a random sequence of events from a continuous Hawkes process.
 
+If `process` is univariate, returns a tuple containing the sequence of event times and sample duration, `(events::Vector{Float64}, duration)`. Else, returns a tuple containing the sequences of event times and nodes and sample duration, `(events::Vector{Float64}, nodes::{Int64}, duration)`.
 """
-    params(process::ContinuousHawkesProcess)
+function rand(process::ContinuousHawkesProcess, duration::AbstractFloat) end
 
-Get a copy of the trainable parameters of a process as a vector.
-"""
-function params(process::ContinuousHawkesProcess) end
 
 """
-    params!(process::ContinuousHawkesProcess)
+    intensity(process::ContinuousHawkesProcess, data, time::AbstractFloat)
 
-Set the trainable parameters of a process from a vector.
-"""
-function params!(process::ContinuousHawkesProcess) end
+Calculate the intensity of a continuous-time Hawkes process at `time` given `data`.
 
-"""
-    loglikelihood(process::ContinuousHawkesProcess, data)
-
-Calculate the log likelihood of `data`.
-
-# Arguments
-- `data::Tuple{Vector{Float64},Vector{Int64},Float64}`: a tuple containing a vector of events, a vector of nodes associated with each event, and the duration of the data sample.
-- `recursive::Bool`: use recursive formulation, if possible.
+### Arguments
+- `data`: a tuple containing sample data in the format returned by `rand(process, duration)`, e.g., `(events, nodes, duration)` for a multivariate process.
 
 # Returns
-- `ll::Float64`: the log-likelihood of the data.
+- `λ::Float64`: the intensity of the process.
 """
-function loglikelihood(process::ContinuousHawkesProcess, data) end
-
-"""
-    logprior(process::ContinuousHawkesProcess)
-
-Calculate the log prior probability of the trainable process parameters.
-"""
-function logprior(process::ContinuousHawkesProcess) end
+function intensity(process::ContinuousHawkesProcess, data, time::AbstractFloat) end
 
 
 """
-    ContinuousUnivariateHawkesProcess
+    ContinuousUnivariateHawkesProcess <: ContinuousHawkesProcess
 
-A continuous Hawkes processes composed of univariate component models. 
+A continuous Hawkes processes composed of univariate component models.
+
+### Example
+```jldoctest; output = false
+baseline = UnivariateHomogeneousProcess(0.1)
+impulse_response = UnivariateLogitNormalImpulseResponse(0.0, 1.0, 2.0)
+weight_model = UnivariateWeightModel(.25)
+process = ContinuousUnivariateHawkesProcess(baseline, impulse_response, weight_model)
+
+# output
+ContinuousUnivariateHawkesProcess(UnivariateHomogeneousProcess{Float64}(0.1, 1.0, 1.0), UnivariateLogitNormalImpulseResponse{Float64}(0.0, 1.0, 0.0, 1.0, 1.0, 1.0, 2.0), UnivariateWeightModel{Float64}(0.25, 1.0, 1.0, 1.0, 1.0))
+```
 """
 mutable struct ContinuousUnivariateHawkesProcess <: ContinuousHawkesProcess
     baseline::ContinuousUnivariateBaseline
@@ -54,7 +46,7 @@ mutable struct ContinuousUnivariateHawkesProcess <: ContinuousHawkesProcess
     weight::UnivariateWeightModel
 end
 
-Base.ndims(process::ContinuousUnivariateDistribution) = 1
+ndims(process::ContinuousUnivariateDistribution) = 1
 
 isstable(process::ContinuousUnivariateHawkesProcess) = abs(process.weight.w) < 1.0
 
@@ -73,7 +65,19 @@ function params!(process::ContinuousUnivariateHawkesProcess, θ)
     return params(process)
 end
 
-function Base.rand(process::ContinuousUnivariateHawkesProcess, duration::AbstractFloat)
+function rand(process::ContinuousUnivariateHawkesProcess, duration::AbstractFloat)
+    """
+        rand(process::ContinuousUnivariateHawkesProcess, duration::AbstractFloat)
+    
+    Sample a random sequence of events from a continuous, univariate Hawkes process.
+    
+    ### Arguments
+    - `duration::AbstractFloat`: the sample duration.
+    
+    ### Returns
+    - `data::Tuple{Vector{Float64},Float64}`: a tuple containing the sequence of event times and sample duration.
+    """
+
     events = Float64[]
     baseline_events, _ = rand(process.baseline, duration)
     append!(events, baseline_events)
@@ -264,20 +268,21 @@ end
 
 abstract type ContinuousMultivariateHawkesProcess <: ContinuousHawkesProcess end
 
-Base.ndims(process::ContinuousMultivariateHawkesProcess) = ndims(process.baseline)
+ndims(process::ContinuousMultivariateHawkesProcess) = ndims(process.baseline)
 
-"""
-    rand(process::ContinuousMultivariateHawkesProcess, duration)
-
-Sample a random sequence of events from a continuous Hawkes process.
-
-# Arguments
-- `duration::Float64`: the sample duration.
-
-# Returns
-- `data::Tuple{Vector{Float64},Vector{Int64},Float64}`: a tuple containing a vector of events, a vector of nodes associated with each event, and the duration of the data sample.
-"""
 function rand(process::ContinuousMultivariateHawkesProcess, duration::AbstractFloat)
+    """
+        rand(process::ContinuousMultivariateHawkesProcess, duration::AbstractFloat)
+    
+    Sample a random sequence of events from a continuous, multivariate Hawkes process.
+    
+    ### Arguments
+    - `duration::AbstractFloat`: the sample duration.
+    
+    ### Returns
+    - `data::Tuple{Vector{Float64},Vector{Int64},Float64}`: a tuple containing the sequences of event times and nodes and sample duration.
+    """
+
     nnodes = ndims(process)
     events = Array{Array{Float64,1},1}(undef, nnodes)
     for parentnode = 1:nnodes
@@ -311,19 +316,19 @@ function truncate(events, t0)
     return events[1:idx]
 end
 
-"""
-    intensity(process::ContinuousMultivariateHawkesProcess, data, times)
-
-Calculate the intensity of `process` at `times` given `data`.
-
-# Arguments
-- `data::Tuple{Vector{Float64},Vector{Int64},Float64}`: a tuple containing a vector of events, a vector of nodes associated with each event, and the duration of the data sample.
-- `times::Vector{Float64}`: a vector times where the process intensity will be computed.
-
-# Returns
-- `λ::Vector{Float64}`: a `len(times)` array of intensities conditional on `data` and `process`.
-"""
 function intensity(process::ContinuousMultivariateHawkesProcess, data, times::Vector{Float64})
+    """
+        intensity(process::ContinuousMultivariateHawkesProcess, data, times)
+    
+    Calculate the intensity of `process` at `times` given `data`.
+    
+    # Arguments
+    - `data::Tuple{Vector{Float64},Vector{Int64},Float64}`: a tuple containing a vector of events, a vector of nodes associated with each event, and the duration of the data sample.
+    - `times::Vector{Float64}`: a vector times where the process intensity will be computed.
+    
+    # Returns
+    - `λ::Vector{Float64}`: a `len(times)` array of intensities conditional on `data` and `process`.
+    """
     λs = zeros(length(times), ndims(process))
     for (i, t0) in enumerate(times)
         λs[i, :] = intensity(process, data, t0)
@@ -347,11 +352,22 @@ end
 
 
 """
-    ContinuousStandardHawkesProcess(baseline, impulses, weights)
+    ContinuousStandardHawkesProcess <: ContinuousMultivariateHawkesProcess
 
 A continuous standard Hawkes processes.
 
 Equivalent to a continuous network Hawkes process with a fully-connected network.
+
+### Example
+```jldoctest; output = false
+baseline = HomogeneousProcess([.1, .1])
+weight_model = DenseWeightModel([.1 .2; .3 .4])
+impulse_response = LogitNormalImpulseResponse(zeros(2, 2), ones(2, 2), 2.0)
+process = ContinuousStandardHawkesProcess(baseline, impulse_response, weight_model)
+
+# output
+ContinuousStandardHawkesProcess(HomogeneousProcess{Float64}([0.1, 0.1], 1.0, 1.0), LogitNormalImpulseResponse([0.0 0.0; 0.0 0.0], [1.0 1.0; 1.0 1.0], 1.0, 1.0, 1.0, 1.0, 2.0), DenseWeightModel{Float64}([0.1 0.2; 0.3 0.4], 1.0, 1.0, [1.0 1.0; 1.0 1.0], [1.0 1.0; 1.0 1.0]))
+```
 """
 struct ContinuousStandardHawkesProcess <: ContinuousMultivariateHawkesProcess
     baseline::ContinuousMultivariateBaseline
@@ -551,11 +567,24 @@ end
 
 
 """
-    ContinuousNetworkHawkesProcess(baseline, impulses, weights, adjacency_matrix, network)
+    ContinuousNetworkHawkesProcess <: ContinuousMultivariateHawkesProcess
 
 A continuous network Hawkes process.
 
 Network Hawkes processes allow for partially-connected networks. The binary `adjacency_matrix` defines network connections generated by the probabilistic `network` model, where `adjacency_matrix[i, j]` represents a connection from node `i` to node `j`.
+
+### Example
+```jldoctest; output = false
+baseline = HomogeneousProcess([.1, .1])
+weight_model = DenseWeightModel([.1 .2; .3 .4])
+impulse_response = LogitNormalImpulseResponse(zeros(2, 2), ones(2, 2), 2.0)
+network = NetworkHawkesProcesses.BernoulliNetworkModel(.5, 2)
+links = [1 0; 0 0]
+process = ContinuousNetworkHawkesProcess(baseline, impulse_response, weight_model, links, network)
+
+# output
+ContinuousNetworkHawkesProcess(HomogeneousProcess{Float64}([0.1, 0.1], 1.0, 1.0), LogitNormalImpulseResponse([0.0 0.0; 0.0 0.0], [1.0 1.0; 1.0 1.0], 1.0, 1.0, 1.0, 1.0, 2.0), DenseWeightModel{Float64}([0.1 0.2; 0.3 0.4], 1.0, 1.0, [1.0 1.0; 1.0 1.0], [1.0 1.0; 1.0 1.0]), [1 0; 0 0], BernoulliNetworkModel(0.5, 1.0, 1.0, 1.0, 1.0, 2))
+```
 """
 struct ContinuousNetworkHawkesProcess <: ContinuousMultivariateHawkesProcess
     baseline::ContinuousMultivariateBaseline
@@ -783,236 +812,3 @@ function effective_weights(process::ContinuousNetworkHawkesProcess, parentnode)
     w = process.weights.W[parentnode, :]
     return a .* w
 end
-
-
-# """
-#     ContinuousIndependentHawkesProcess
-
-# A container type for an collection of independent univariate Hawkes processes having identical component types. Provides convenience functions to construct non-independent multivariate processes.
-
-# Methods for independent processes *cannot*, in general, assume uniformity of the constituent univariate processes. For example, the default constructor does not prevent the construction of an independent process from two univariate processes with different `impulse_response` types or having the type with different fields (e.g., `Δtmax`). 
-
-# # Example
-# ndims = 3;
-# Δtmax = 1.0;
-# list = [
-#     ContinuousUnivariateHawkesProcess(
-#         UnivariateHomogeneousProcess(rand()),
-#         UnivariateLogitNormalImpulseResponse(rand(), rand(), Δtmax),
-#         UnivariateWeightModel(rand())
-#     ) for _ in 1:ndims
-# ];
-# process = ContinuousIndependentHawkesProcess(list);
-# """
-# struct ContinuousIndependentHawkesProcess <: ContinuousMultivariateHawkesProcess
-#     list::Vector{ContinuousUnivariateHawkesProcess}
-# end
-
-# function ContinuousIndependentHawkesProcess(baseline, impulse_response, weight, n)
-#     return ContinuousIndependentHawkesProcess(
-#         [ContinuousUnivariateHawkesProcess(deepcopy(baseline), deepcopy(impulse_response), deepcopy(weight)) for _ in 1:n]
-#     )
-# end
-
-# function ContinuousStandardHawkesProcess(process::ContinuousIndependentHawkesProcess)
-#     """Assumes uniformity of the constituent processes non-trainable parameter fields."""
-#     baseline = multivariate(process.list[1].baseline,
-#         params.([p.baseline for p in process.list]))
-#     impulse_response = multivariate(process.list[1].impulse_response,
-#         params.([p.impulse_response for p in process.list]))
-#     weights = multivariate(process.list[1].weight,
-#         params.([p.weight for p in process.list]))
-
-#     return ContinuousStandardHawkesProcess(baseline, impulse_response, weights)
-# end
-
-# ndims(process::ContinuousIndependentHawkesProcess) = length(process.list)
-
-# isstable(process::ContinuousIndependentHawkesProcess) = all(isstable.(process.list))
-
-# nparams(process::ContinuousIndependentHawkesProcess) = mapreduce(nparams, +, process.list)
-
-# params(process::ContinuousIndependentHawkesProcess) = mapreduce(params, vcat, process.list)
-
-# function params!(process::ContinuousIndependentHawkesProcess, x)
-#     length(x) == nparams(process) || throw(ArgumentError("Length of parameter vector x ($(length(x))) should equal the number of model parameters ($nparams(process))"))
-
-#     for (p, x) in zip(process.list, partition(x, process))
-#         params!(p, x)
-#     end
-
-#     return params(process)
-# end
-
-# function Base.rand(process::ContinuousIndependentHawkesProcess, duration::AbstractFloat)    
-#     data = [rand(p, duration) for p in process.list]
-#     events = mapreduce(d -> d[1], vcat, data)
-#     nodes = mapreduce(((i, d), ) -> i * ones(Int, length(d[1])), vcat, enumerate(data))
-#     idx = sortperm(events)
-
-#     return events[idx], nodes[idx], duration
-# end
-
-# function loglikelihood(process::ContinuousIndependentHawkesProcess, data; recurvise=true)
-#     """Expects data to be separated by process, i.e., data = separate(data, process)."""
-#     return mapreduce(((p, d), ) -> loglikelihood(p, d), +, zip(process.list, data))
-# end
-
-# function logprior(process::ContinuousIndependentHawkesProcess)
-#     return mapreduce(p -> logprior(p), *, process.list)
-# end
-
-# function intensity(process::ContinuousIndependentHawkesProcess, data, time::AbstractFloat)
-#     # return [
-#     #     intensity(p, d, time) for (p, d) in zip(process.list, split(data, process))
-#     # ]
-#     throw(ErrorException("method not implemented"))
-# end
-
-# function intensity(process::ContinuousIndependentHawkesProcess, data, times::Vector{AbstractFloat})
-#     # TODO
-    
-#     throw(ErrorException("method not implemented"))
-#     # return λ
-# end
-
-# function mle!(process::ContinuousIndependentHawkesProcess, data; optimizer=BFGS, verbose=false, f_abstol=1e-6, regularize=false, guess=nothing, joint=false)
-    
-#     data = split(data, process)
-#     guess = isnothing(guess) ? _rand_init_(process) : guess # or _default_init_(process, data)
-    
-#     if !joint
-#         # Note: not parallelized over nodes b/c `loglikelihood` is already using all available threads (much higher benefit)
-#         guesses = partition(guess, process)
-#         res = [
-#                 mle!(p, d; 
-#                     optimizer=optimizer,
-#                     verbose=verbose,
-#                     f_abstol=f_abstol,
-#                     regularize=regularize, guess=θ) for (p, d, θ) in zip(process.list, data, guesses)
-#             ]
-
-#         return MaximumLikelihood(
-#             reduce(vcat, [r.maximizer for r in res]),
-#             reduce(+, [r.maximum for r in res]),
-#             reduce(+, [r.steps for r in res]),
-#             reduce(+, [r.elapsed for r in res]),
-#             all(mapreduce(s -> s == "success", vcat, [r.status for r in res]))
-#         )
-#     else
-#         # Joint optimization (this seems to be generally a slower option)
-#         function objective(x)
-#             params!(process, x)
-#             return regularize ? -loglikelihood(process, data) - logprior(process) : -loglikelihood(process, data)
-#         end
-
-#         minloss = Inf
-#         outer_iter = 0
-#         converged = false
-#         steps = 0
-
-#         function status_update(o)
-#             if o.iteration == 0
-#                 if verbose
-#                     println("* iteration (n=$outer_iter)")
-#                 end
-#                 outer_iter += 1
-#                 minloss = Inf
-#             end
-#             if o.iteration % 1 == 0
-#                 if verbose
-#                     println(" > step: $(o.iteration), loss: $(o.value), elapsed: $(o.metadata["time"])")
-#                 end
-#             end
-#             if abs(o.value - minloss) < f_abstol
-#                 converged = true
-#                 steps = o.iteration
-#                 println("\n* Status: f_abstol convergence criteria reached!")
-#                 println("    elapsed: $(o.metadata["time"])")
-#                 println("    final loss: $(o.value)")
-#                 println("    min. loss: $(minloss)")
-#                 println("    outer iterations: $outer_iter")
-#                 println("    inner iterations: $(o.iteration)\n")
-#                 return true
-#             else
-#                 minloss = o.value
-#             end
-#             return false
-#         end
-
-#         lower = fill(1e-6, size(guess))
-#         upper = fill(1e1, size(guess))
-#         optimizer = Fminbox(optimizer())
-#         options = Optim.Options(callback=status_update)
-#         res = optimize(objective, lower, upper, guess, optimizer, options)
-#         return MaximumLikelihood(
-#             res.minimizer,
-#             -res.minimum,
-#             steps,
-#             res.time_run,
-#             converged ? "success" : "failure"
-#         )
-#     end
-# end
-
-# _rand_init_(process::ContinuousIndependentHawkesProcess) = mapreduce(_rand_init_, vcat, process.list)
-
-# function resample!(process::ContinuousIndependentHawkesProcess, splits)
-#     """Expects data to be separated by process, i.e., splits = separate(data, process)."""
-#     for (p, d) in zip(process.list, splits)
-#         resample!(p, d)
-#     end
-
-#     return params(process)
-# end
-
-# function mcmc!(process::ContinuousIndependentHawkesProcess, data; nsteps=1000, log_freq=100, verbose=false, joint=false)
-
-#     splits = split(data, process)
-
-#     if !joint
-#         kwargs = Dict(
-#             :nsteps => nsteps,
-#             :log_freq => log_freq,
-#             :verbose => verbose
-#             )
-#         res =  [mcmc!(p, d; kwargs...) for (p, d) in zip(process.list, splits)]
-#         # TODO: combine results...
-#     else
-#         start_time = time()
-#         res = MarkovChainMonteCarlo(process)
-#         while res.steps < nsteps
-#             resample!(process, splits)
-#             push!(res.samples, params(process))
-#             res.steps += 1
-#             if res.steps % log_freq == 0 && verbose
-#                 res.elapsed = time() - start_time
-#                 println(" > step: $(res.steps), elapsed: $(res.elapsed)")
-#             end
-#         end
-#         res.elapsed = time() - start_time
-#     end
-
-#     return res
-# end
-
-# function partition(x, process)
-#     """Partition a parameter vector into slices based the number of parameters in each constituent univariate process."""
-#     length(x) == nparams(process) || throw(ArgumentError("Length of the parameter vector ($(length(x))) should equal the number of process parameters ($(nparams(process)))."))
-
-#     partitions = []
-#     idx = 1
-#     for p in process.list
-#         push!(partitions, x[idx:idx+nparams(p)-1])
-#         idx += nparams(p)
-#     end
-
-#     return partitions
-# end
-
-# function split(data, process)
-#     """Split combined data into univariate samples."""
-#     events, nodes, duration = data
-
-#     return [(events[nodes .== i], duration) for i = 1:ndims(process)]
-# end
