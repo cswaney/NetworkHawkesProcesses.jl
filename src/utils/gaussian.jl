@@ -41,24 +41,47 @@ end
 
 
 """
-GaussianProcess
+    GaussianProcess
 
-A 1-dimensional Gaussian process.
+A univariate Gaussian process.
 
-Defines a distribution over trajectories `f(x)` on a domain `[a, b]` such that:
+### Details
+Defines a distribution over trajectories ``f(x)`` on domain ``[a, b]`` such that:
 
-    E[f(x)] = mu(x)
-    cov[f(x), f(y)] = kernel(x, y)
+```math
+\\begin{aligned}
+\\mathbb{E} \\left[f(x)\\right] &= \\mu(x) \\\\
+\\text{cov} \\left[f(x), f(y)\\right] &= K(x, y)
+\\end{aligned}
+```
 
-for all `x, y ∈ [a, b]`. Drawing a discretized sample `f = [f(x[1]), ..., f(x[n])]` is equivalent to sampling a multivariate Gaussian:
+for all ``x, y \\in [a, b]``.
+    
+Drawing a discretized sample ``f_{1:N}`` is equivalent to sampling a multivariate Gaussian:
 
-    f ~ N(μ, Σ)
-    μ[i] = mu(x[i])
-    Σ[i, j] = kernel(x[i], x[j])
+```math
+\\begin{aligned}
+f &\\sim \\mathcal{N}(\\mu, \\Sigma) \\\\
+\\mu_i &= \\mu(x_i) \\\\
+\\Sigma_{i, j} &= K(x_i, x_j)
+\\end{aligned}
+```
 
-# Arguments
-- `mu`: mean function
-- `kernel`: covariance function
+### Arguments
+- `mu`: a mean function ``x \\rightarrow \\mu(x)`` (default: `zero`).
+- `kernel`: a covariance function ``x, y \\rightarrow K(x, y)``.
+
+### Examples
+```jldoctest
+kernel = SquaredExponentialKernel(1.0, 1.0)
+gp = GaussianProcess(kernel)
+
+# output
+GaussianProcess(zero, SquaredExponentialKernel(1.0, 1.0))
+```
+
+### References
+- [https://en.wikipedia.org/wiki/Gaussian_process](https://en.wikipedia.org/wiki/Gaussian_process)
 """
 struct GaussianProcess
     mu::Function
