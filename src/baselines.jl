@@ -63,7 +63,6 @@ A continuous-time, univariate homogeneous Poisson process with constant intensit
 
 ### Examples
 ```jldoctest; output = false
-using NetworkHawkesProcesses
 baseline = UnivariateHomogeneousProcess(1.0, 1.0, 1.0)
 
 # output
@@ -71,7 +70,6 @@ UnivariateHomogeneousProcess{Float64}(1.0, 1.0, 1.0)
 ```
 
 ```jldoctest; output = false
-using NetworkHawkesProcesses
 baseline = UnivariateHomogeneousProcess(1.0) # use default hyperparameters
 
 # output
@@ -172,7 +170,6 @@ A continuous-time, multivariate homogeneous Poisson process with constant intens
 
 ### Examples
 ```jldoctest; output = false
-using NetworkHawkesProcesses
 baseline = HomogeneousProcess(ones(Float32, 2), 1.0f0, 1.0f0)
 
 # output
@@ -180,7 +177,6 @@ HomogeneousProcess{Float32}(Float32[1.0, 1.0], 1.0f0, 1.0f0)
 ```
 
 ```jldoctest; output = false
-using NetworkHawkesProcesses
 baseline = HomogeneousProcess(ones(3)) # use default hyperparameters
 
 # output
@@ -359,9 +355,7 @@ Finally, the intensity of the process is calculated via linear interpolation of 
 - `m::T`: an offset hyperparameter (default: 0.0).
 
 ### Examples
-```jldoctest
-using NetworkHawkesProcesses
-using NetworkHawkesProcesses: SquaredExponentialKernel, GaussianProcess
+```julia
 kernel = SquaredExponentialKernel(1.0, 1.0)
 gp = GaussianProcess(kernel)
 x = collect(0.0:1.0:10.)
@@ -407,7 +401,7 @@ UnivariateLogGaussianCoxProcess(
 """
     UnivariateLogGaussianCoxProcess(gp::GaussianProcess, duration::AbstractFloat, nsteps::Integer, m::AbstractFloat)
 
-Construct a log Gaussian Cox process whose intensity is sampled from a Gaussian process at `nsteps` gridpoints evenly distributed between `0.0` and `duration`.
+Construct a continuous-time, univariate log Gaussian Cox process whose intensity is sampled from a Gaussian process at `nsteps` gridpoints evenly distributed between `0.0` and `duration`.
 
 ### Example
 ```julia
@@ -416,7 +410,7 @@ gp = NetworkHawkesProcesses.GaussianProcess(kernel)
 baseline = UnivariateLogGaussianCoxProcess(gp, 100.0, 10)
 ```
 """
-function UnivariateLogGaussianCoxProcess(gp::GaussianProcess, duration::AbstractFloat, nsteps::Integer, m::AbstractFloat=0.0)
+function UnivariateLogGaussianCoxProcess(gp::GaussianProcess, duration::AbstractFloat, nsteps::Integer, m::T=0.0) where {T<:AbstractFloat}
     duration > 0.0 || throw(DomainError(duration, "Duration should be positive"))
     nsteps > 0 || throw(DomainError(nsteps, "Number of steps should be  a positive integer"))
 
@@ -554,10 +548,10 @@ integrated_intensity(p::UnivariateLogGaussianCoxProcess, duration::AbstractFloat
 """
     LogGaussianCoxProcess{T<:AbstractFloat}(x, λ, Σ, m) <: ContinuousMultivariateBaseline
 
-A continuous-time, multivariate log Gaussian Cox process.
+An ``N``-dimensional continuous-time log Gaussian Cox process.
 
 ### Details
-The process consists of `ndims(process)` *independent* log Gaussian Cox processes with a shared Gaussian process prior that is sampled along a common sequence of gridpoints, ``x_{1:T}``.
+The process consists of ``N`` *independent* log Gaussian Cox processes with a shared Gaussian process prior, ``\\mathcal{GP}(0, K)``, which is sampled along a common sequence of gridpoints, ``x_{1:T}``.
 
 See [`UnivariateLogGaussianCoxProcess`](@ref) for details of the log Gaussian Cox data generating process.
 
@@ -568,9 +562,7 @@ See [`UnivariateLogGaussianCoxProcess`](@ref) for details of the log Gaussian Co
 - `m::T`: an offset hyperparameter (default: 0.0).
 
 ### Examples
-```jldoctest
-using NetworkHawkesProcesses
-using NetworkHawkesProcesses: SquaredExponentialKernel, GaussianProcess
+```julia
 kernel = SquaredExponentialKernel(1.0, 1.0)
 gp = GaussianProcess(kernel)
 x = collect(0.0:1.0:10.)
@@ -820,20 +812,41 @@ integrated_intensity(p::LogGaussianCoxProcess, node::Integer, duration::Abstract
 
 
 """
-    DiscreteUnivariateHomogeneousProcess{T <: AbstractFloat} <: DiscreteUnivariateBaseline
+    DiscreteUnivariateHomogeneousProcess{T<:AbstractFloat} <: DiscreteUnivariateBaseline
 
-A discrete-time homogeneous Poisson process that supports Bayesian inference for the probabilistic model:
+A univariate, discrete-time homogeneous Poisson process that supports Bayesian inference for the probabilistic model:
 
-    λ ~ Gamma(λ[i] | α0, β0)
-    x[t] ~ Poisson(x[t] | λ * dt) (t = 1, ...)
+```math
+\\begin{aligned}
+\\lambda &\\sim \\text{Ga}(\\lambda \\ | \\ \\alpha_0, \\beta_0) \\\\
+x_t &\\sim \\text{Poisson}(x_t \\ | \\ \\lambda \\cdot dt)
+\\end{aligned}
+```
+
+The model supports mean-field variational inference via a ``\\text{Ga}(\\alpha^v, \\beta^v)`` variational distribution.
 
 ### Arguments
-- `λ::T`
-- `α0::T`
-- `β0::T`
-- `αv::T`
-- `βv::T`
-- `dt::T`
+- `λ::AbstractFloat`: a constant, non-negative intensity parameter.
+- `α0::AbstractFloat`: a positive shape hyperparameter (default: `1.0`).
+- `β0::AbstractFloat`: a positive rate hyperparameter (default: `1.0`).
+- `αv::AbstractFloat`: a positive shape variational parameter (default: `1.0`).
+- `βv::AbstractFloat`: a positive rate variational parameter (default: `1.0`).
+- `dt::AbstractFloat`: the duration of each time step.
+
+### Examples
+```jldoctest; output = false
+baseline = DiscreteUnivariateHomogeneousProcess(1.0, 1.0, 1.0, 1.0, 1.0, 2.0)
+
+# output
+DiscreteUnivariateHomogeneousProcess{Float64}(1.0, 1.0, 1.0, 1.0, 1.0, 2.0)
+```
+
+```jldoctest; output = false
+baseline = DiscreteUnivariateHomogeneousProcess(1.0, 2.0) # use default hyperparameters
+
+# output
+DiscreteUnivariateHomogeneousProcess{Float64}(1.0, 1.0, 1.0, 1.0, 1.0, 2.0)
+```
 """
 mutable struct DiscreteUnivariateHomogeneousProcess{T<:AbstractFloat} <: DiscreteUnivariateBaseline
     λ::AbstractFloat
@@ -945,18 +958,34 @@ end
 
 
 """
-    DiscreteHomogeneousProcess{T <: AbstractFloat} <: DiscreteMultivariateBaseline
+    DiscreteHomogeneousProcess{T<:AbstractFloat} <: DiscreteMultivariateBaseline
 
 A discrete, homogeneous Poisson process that supports Bayesian inference for the probabilistic model:
 
-    λ[i] ~ Gamma(λ[i] | α0, β0) (i = 1, ..., N)
-    x[i, t] ~ Poisson(x[i, t] | λ[i] * dt) (t = 1, ..., T)
+```math
+\\begin{aligned}
+\\lambda_n &\\sim \\text{Ga}(\\lambda_n \\ | \\ \\alpha_0, \\beta_0) \\\\
+x_{n,t} &\\sim \\text{Poisson}(x_{n,t} \\ | \\ \\lambda_n \\cdot dt)
+\\end{aligned}
+```
+
+The model supports mean-field variational inference via a ``\\text{Ga}(\\alpha_n^v, \\beta_n^v)`` variational distribution for each node ``n``.
 
 ### Arguments
-- `λ::Vector{T}`: a vector of intensities.
-- `α0::T`: the shape parameter of the Gamma prior.
-- `β0::T`: the inverse-scale (i.e., rate) parameter of the Gamma prior.
-- `dt::T`: the physical time represented by each time step, `t`.
+- `λ::AbstractFloat`: a constant, non-negative intensity parameter.
+- `α0::AbstractFloat`: a positive shape hyperparameter (default: `1.0`).
+- `β0::AbstractFloat`: a positive rate hyperparameter (default: `1.0`).
+- `αv::AbstractFloat`: a positive shape variational parameter (default: `1.0`).
+- `βv::AbstractFloat`: a positive rate variational parameter (default: `1.0`).
+- `dt::AbstractFloat`: the duration of each time step.
+
+### Examples
+```jldoctest; output = false
+baseline = DiscreteHomogeneousProcess([0.5, 0.25], 2.0)
+
+# output
+DiscreteHomogeneousProcess{Float64}([0.5, 0.25], 1.0, 1.0, [1.0, 1.0], [1.0, 1.0], 2.0)
+```
 """
 mutable struct DiscreteHomogeneousProcess{T<:AbstractFloat} <: DiscreteMultivariateBaseline
     λ::Vector{T}
@@ -1095,63 +1124,27 @@ end
 
 
 """
-    DiscreteUnivariateLogGaussianCoxProcess(x, λ, Σ, m, dt)
+    DiscreteUnivariateLogGaussianCoxProcess{T<:AbstractFloat} <: DiscreteUnivariateBaseline
 
-A discrete, univariate log Gaussian Cox process.
+A univariate, discrete-time log Gaussian Cox process.
 
-### Description
-The intensity of the process at discrete time step `t ∈ {1, ..., N}` is
+### Details
+The intensity of the process at time step ``t`` is
 
-`f((t - 1) * dt) * dt`,
+```math
+f^{\\lambda}_x((t - 1) \\cdot dt) \\cdot dt
+```
 
-where `f` is a linear interpolation of `λ` given `x`. In words, we assign the value of the linear interpolation evaluated at the *left* endpoint of the time step interval, `[(t-1) * dt, t * dt]`, scaled to the length of the time step, `dt`. The length of each time step, `dt`, is generally smaller than the distance between consecutive `x` values, and the total number of time steps is `length(range(start=0.0, stop=x[end] - dt, step=dt))` (i.e.,  the maximum number of time steps for which the *right* endpoint lies within the domain of `x`).
+where ``f^{\\lambda}_x`` represents the linear interpolation of the intensity values ``λ_{1:N}`` through gridpoints ``x_{1:N}``. In words, we assign the value of the linear interpolation evaluated at the *left* endpoint of the time step interval, ``[(t-1) \\cdot dt, t \\cdot dt]``, scaled by the length of the time step, ``dt``. The length of each time step is generally smaller than the distance between consecutive ``x_t`` values and the total number of time steps is the number of time steps whose *right* endpoint lies within the domain ``[x_1, x_N]``, ``T = x_N \\div dt``.
 
-  x[1] x[2] x[3] x[4] x[5]
-    |    |    |    |    |
-    — — — — — — — — — — —
-    |    |    |    |    |
-    |    | *  |    |    |
-    |  * *   *|    |    |
-λ   |*   |    |* * |    |
-    |    |    |    * * *|
-    |    |    |    |    |
-    |    |    |    |    |
-    — — — — — — — — — — —
-t = |1|2|3|4|5|6|7|8|9|10|
- 
-The probabilistic model is:
-
-    y[1:T] ~ GP(0, K)
-    λ[t] = exp(m + y[t]) for all t = 1, ..., T
-    s ~ PP(λ[t])
-
-For a set of gridpoints, `x[1] = 0.0, ..., x[N]`, a corresponding sample of the Gaussian process, `y[1], ..., y[N]`, has a `N(0, Σ)` distribution, where
-
-    Σ[i, j] = K(x[i], x[j])
-
-The process is sampled by interpolating between intensity values `λ[1], ..., λ[N]`.
+See [`UnivariateLogGaussianCoxProcess`](@ref) for details of the log Gaussian Cox data generating process.
 
 ### Arguments
-- `x::Vector{<:AbstractFloat}`: a strictly increasing vector of gridpoints starting from `x[1] = 0.0`.
-- `λ::Matrix{<:AbstractFloat}`: non-negative intensity vector.
-- `Σ::PDMat{<:AbstractFloat}`: positive-definite covariance matrix.
-- `m::AbstractFloat`: intensity offset equal to the baseline intensity of a homogeneous process (default: 0.0).
-- `dt::AbstractFloat`: positive time step (default: 1.0).
-
-### Example
-```julia
-duration = 100.0;
-dt = 2.5;
-sigma = 1.0
-eta = 1.0
-bias = 0.0
-nsteps = 10
-
-kernel = SquaredExponentialKernel(sigma, eta);
-gp = GaussianProcess(kernel);
-baseline = DiscreteUnivariateLogGaussianCoxProcess(gp, duration, nsteps, bias, dt);
-rand(baseline, 10)
-```
+- `x::Vector{T}`: a sequence of gridpoints ``x_1 = 0, \\dots, x_N``.
+- `λ::Vector{T}`: non-negative intensity parameters.
+- `Σ::PDMat{T}`: a positive definite covariance hyperparameter.
+- `m::T`: an offset hyperparameter (default: `0.0`).
+- `dt::AbstractFloat`: positive time step (default: `1.0`).
 """
 mutable struct DiscreteUnivariateLogGaussianCoxProcess{T<:AbstractFloat} <: DiscreteUnivariateBaseline
     x::Vector{T}
@@ -1178,7 +1171,7 @@ end
 """
     DiscreteUnivariateLogGaussianCoxProcess(gp::GaussianProcess, duration, nsteps, m, dt)
 
-Construct a discrete, univariate log Gaussian Cox process by randomly sampling a Gaussian process along gridpoints `x = range(start=0.0, stop=duration, length=nsteps+1)`.
+Construct a discrete-time, univariate log Gaussian Cox process by randomly sampling a Gaussian process along gridpoints `x = range(start=0.0, stop=duration, length=nsteps+1)`.
 """
 function DiscreteUnivariateLogGaussianCoxProcess(gp::GaussianProcess, duration, nsteps, m::T = 0.0, dt::T = 1.0) where {T<:AbstractFloat}
     rem(duration, nsteps) == 0 || throw(ArgumentError("Duration ($duration) should be divisible by number of steps ($nsteps)."))
@@ -1193,14 +1186,20 @@ end
 
 multivariate(p::DiscreteUnivariateLogGaussianCoxProcess, params) = DiscreteLogGaussianCoxProcess(p.x, hcat(params...), p.Σ, p.m, p.dt)
 
-"""
-    range(p::DiscreteUnivariateLogGaussianCoxProcess)
+function range(p::DiscreteUnivariateLogGaussianCoxProcess)
+    """
+        range(p::DiscreteUnivariateLogGaussianCoxProcess)
+    
+    Calculate the sequence of *left* endpoints for time steps whose *right* endpoints lie within the domain `[x[1], x[end]]` (i.e., the left endpoint of all time steps supported by the process).
+    """
 
-Calculate the sequence of *left* endpoints for time steps whose *right* endpoints lie within the domain `[x[1], x[end]]` (i.e., the left endpoint of all time steps supported by the process).
-"""
-range(p::DiscreteUnivariateLogGaussianCoxProcess) = Base.range(start=0.0, stop=p.x[end] - p.dt, step=p.dt)
+    return Base.range(start=0.0, stop=p.x[end] - p.dt, step=p.dt)
+end
+
 nsteps(p::DiscreteUnivariateLogGaussianCoxProcess)::Int = div(p.x[end], p.dt) # == length(range(p))
+
 params(p::DiscreteUnivariateLogGaussianCoxProcess) = copy(vec(p.λ))
+
 nparams(p::DiscreteUnivariateLogGaussianCoxProcess) = length(p.λ)
 
 function params!(process::DiscreteUnivariateLogGaussianCoxProcess, x)
@@ -1334,27 +1333,19 @@ end
 
 
 """
-    DiscreteLogGaussianCoxProcess
+    DiscreteLogGaussianCoxProcess{T<:AbstractFloat} <: DiscreteMultivariateBaseline
 
-A discrete log Gaussian Cox process constructed from a realization of a Gaussian process at fixed gridpoints.
+An ``N``-dimensional, discrete-time log Gaussian Cox process.
 
-The probabilistic model is:
+### Details
+See [`DiscreteUnivariateLogGaussianCoxProcess`](@ref) for details.
 
-    y ~ GP(0, K)
-    λ[t] = exp(m + y[t])
-    s ~ PP(λ[t])
-
-For an arbitrary set of gridpoints, `x[1] = 1, ..., x[N] = T`, a corresponding sample of the Gaussian process, `y[1], ..., y[N]`, has a `N(0, Σ)` distribution, where
-
-    Σ[i, j] = K(x[i], x[j])
-
-The process is sampled by interpolating between intensity values `λ[1], ..., λ[N]`.
-
-# Arguments
-- `x::Vector{Int64}`: a strictly increasing vector of sampling gridpoints.
-- `λ::Matrix{Float64}`: a non-negative, `length(x) x ndims` intensity matrix, ie, `λ[i, n] = λ_n([x[i])`.
-- `Σ::Matrix{Float64}`: a positive-definite variance matrix.
-- `m::Float64`: intensity offset equal to `log(λ0)` of a homogeneous process.
+### Arguments
+- `x::Vector{T}`: a sequence of gridpoints ``x_1 = 0, \\dots, x_N``.
+- `λ::Matrix{T}`: non-negative, `length(x) x ndims(process)` intensity parameter.
+- `Σ::PDMat{T}`: a positive definite covariance hyperparameter.
+- `m::T`: an offset hyperparameter (default: `0.0`).
+- `dt::AbstractFloat`: positive time step (default: `1.0`).
 """
 mutable struct DiscreteLogGaussianCoxProcess <: DiscreteMultivariateBaseline
     x::Vector{Float64}
