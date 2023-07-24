@@ -11,23 +11,54 @@ function isstable(process::DiscreteHawkesProcess) end
 function nparams(process::DiscreteHawkesProcess) end
 function params(process::DiscreteHawkesProcess) end
 function params!(process::DiscreteHawkesProcess, x) end
+
+"""
+    rand(process::DiscreteHawkesProcess, duration::Integer)
+
+Sample a random sequence of events from a discrete Hawkes process.
+
+If `process` is univariate, returns a length-`duration` vector of event counts, `data::Vector{Int64}`. Else, returns a `ndims(process) x duration` matrix of event counts, `data::Matrix{Int64}`.
+"""
 function rand(process::DiscreteHawkesProcess, steps::Integer) end
+
+"""
+    convolve(process::DiscreteHawkesProcess, data)
+
+Convolve `data` with the basis functions of a process.
+
+### Details
+The convolution of each basis function with `data` produces a `nobs x ndims` matrix. Stacking these matrices up across all `nbasis` basis columns results in a `nobs x ndims x nbasis` array (`nobs x nbasis` array for univariate processes).
+
+### Arguments
+- `data::Array{Int64}`: `ndims x nobs` array of event counts (`nobs` vector for univariate processes).
+
+### Returns
+- `convolved::Array{Float64}`: `nobs x ndims x nbasis` array of event counts convolved with basis functions (`nobs x nbasis` array for univariate processes).
+"""
 function convolve(process::DiscreteHawkesProcess, data) end
 
-"""
-    intensity(process::DiscreteHawkesProcess, data)
-
-Calculate the intensity of a discrete-time Hawkes process at all time steps represented by `data`.
-"""
 function intensity(process::DiscreteHawkesProcess, data)
+    """
+        intensity(process::DiscreteHawkesProcess, data)
+    
+    Calculate the intensity of a discrete-time Hawkes process at all time steps represented by `data`.
+    """
     return intensity(process, convolve(process, data))
 end
 
 """
-    loglikelihood(process::DiscreteHawkesProcess, data)
+    intensity(process::DiscreteHawkesProcess, data, time::Integer)
 
-Calculate the log likelihood of a discrete-time Hawkes process given `data`.
+Calculate the intensity of a discrete-time Hawkes process at `time` given `data`.
+
+### Arguments
+- `data`: event count data in the form returned by `rand(process)`, i.e., `Matrix{Int64}` for multivariate processes and `Vector{Int64}` for univariate processes.
+
+# Returns
+- `λ::Float64`: the intensity of the process.
 """
+function intensity(process::DiscreteHawkesProcess, data, time::Integer) end
+
 function loglikelihood(process::DiscreteHawkesProcess, data)
     convolved = convolve(process, data)
     return loglikelihood(process, data, convolved)
@@ -91,18 +122,19 @@ function weights(process::DiscreteUnivariateHawkesProcess, x)
     return connection_weights, basis_weights
 end
 
-"""
-    rand(p::DiscreteUnivariateHawkesProcess, steps::Integer)
-
-Sample a random sequence of events from a univariate discrete Hawkes process.
-
-### Arguments
-- `steps::Integer`: the number of time steps to sample.
-
-### Returns
-- `events::Vector{Int64}`: a length `steps` array of event counts.
-"""
 function Base.rand(process::DiscreteUnivariateHawkesProcess, steps::Integer)
+    """
+        rand(p::DiscreteUnivariateHawkesProcess, steps::Integer)
+    
+    Sample a random sequence of events from a discrete, univariate Hawkes process.
+    
+    ### Arguments
+    - `steps::Integer`: the number of time steps to sample.
+    
+    ### Returns
+    - `events::Vector{Int64}`: a length `steps` array of event counts.
+    """
+    
     L = nlags(process)
     events = rand(process.baseline, steps)
     for t = 1:steps-1
@@ -264,18 +296,19 @@ abstract type DiscreteMultivariateHawkesProcess <: DiscreteHawkesProcess end
 
 function impulse_response(process::DiscreteMultivariateHawkesProcess, parentnode, childnode, lag) end
 
-"""
-    rand(p::DiscreteMultivariateHawkesProcess, steps::Integer)
-
-Sample a random sequence of events from a multivariate discrete Hawkes process.
-
-### Arguments
-- `steps::Integer`: the number of time steps to sample.
-
-### Returns
-- `events::Matrix{Int64}`: an `N x T` array of event counts.
-"""
 function rand(process::DiscreteMultivariateHawkesProcess, steps::Integer)
+    """
+        rand(p::DiscreteMultivariateHawkesProcess, steps::Integer)
+    
+    Sample a random sequence of events from a discrete, multivariate Hawkes process.
+    
+    ### Arguments
+    - `steps::Integer`: the number of time steps to sample.
+    
+    ### Returns
+    - `events::Matrix{Int64}`: an `ndims(process) x steps` array of event counts.
+    """
+
     N = ndims(process)
     L = nlags(process)
     events = rand(process.baseline, steps)
@@ -295,19 +328,6 @@ function rand(process::DiscreteMultivariateHawkesProcess, steps::Integer)
     return events
 end
 
-"""
-    convolve(process::DiscreteMultivariateHawkesProcess, data)
-
-Convolve `data` with a processes' basis functions.
-
-The convolution of each basis function with `data` produces a `T x N` matrix. Stacking these matrices up across all `B` basis columns results in a `T x N x B` array.
-
-# Arguments
-- `data::Array{Int64,2}`: `N x T` array of event counts.
-
-# Returns
-- `convolved::Array{Float64,3}`: `T x N x B` array of event counts convolved with basis functions.
-"""
 function convolve(process::DiscreteMultivariateHawkesProcess, data)
     _, T = size(data)
     convolved = [conv(transpose(data), [0.0, u...])[1:T, :] for u in basis(process.impulse_response)]
@@ -315,18 +335,18 @@ function convolve(process::DiscreteMultivariateHawkesProcess, data)
     return max.(convolved, 0.0)
 end
 
-"""
-    intensity(process::DiscreteMultivariateHawkesProcess, convolved)
-
-Calculate the intensity at time all times `t ∈ [1, 2, ..., T]` given pre-convolved event data.
-
-# Arguments
-- `convolved::Array{Float64,3}`: `T x N x B` array of event counts convolved with basis functions.
-
-# Returns
-- `λ::Array{Float64,2}`: a `T x N` array of intensities conditional on the convolved event counts.
-"""
 function intensity(process::DiscreteMultivariateHawkesProcess, convolved)
+    """
+        intensity(process::DiscreteMultivariateHawkesProcess, convolved)
+    
+    Calculate the intensity at time all times `t ∈ [1, 2, ..., T]` given pre-convolved event data.
+    
+    # Arguments
+    - `convolved::Array{Float64,3}`: `T x N x B` array of event counts convolved with basis functions.
+    
+    # Returns
+    - `λ::Array{Float64,2}`: a `T x N` array of intensities conditional on the convolved event counts.
+    """
     T, N, B = size(convolved)
     λ = intensity(process.baseline, 1:T)
     for t = 1:T
@@ -342,19 +362,19 @@ function intensity(process::DiscreteMultivariateHawkesProcess, convolved)
     return λ
 end
 
-"""
-    loglikelihood(process::DiscreteMultivariteHawkesProcess, data, convolved)
-
-Calculate the log-likelihood of `data`. Providing `convolved` skips computation of the convolution step.
-
-# Arguments
-- `data::Array{Int64,2}`: `N x T` array of event counts.
-- `convolved::Array{Float64,3}`: `T x N x B` array of event counts convolved with basis functions.
-
-# Returns
-- `ll::Float64`: the log-likelihood of the event counts.
-"""
 function loglikelihood(process::DiscreteMultivariateHawkesProcess, data, convolved)
+    """
+        loglikelihood(process::DiscreteMultivariteHawkesProcess, data, convolved)
+    
+    Calculate the log-likelihood of `data`. Providing `convolved` skips computation of the convolution step.
+    
+    # Arguments
+    - `data::Array{Int64,2}`: `N x T` array of event counts.
+    - `convolved::Array{Float64,3}`: `T x N x B` array of event counts convolved with basis functions.
+    
+    # Returns
+    - `ll::Float64`: the log-likelihood of the event counts.
+    """
     λ = intensity(process, convolved)
     T, N, _ = size(convolved)
     ll = 0.0
@@ -367,19 +387,20 @@ function loglikelihood(process::DiscreteMultivariateHawkesProcess, data, convolv
     return ll
 end
 
-"""
-    augmented_loglikelihood(process::DiscreteMultivariateHawkesProcess, parents, convolved)
-
-Calculate the log-likelihood of the data given latent parent counts `parents`. The `parents` array contains all information required because summing across the last dimension gives the event count array.
-
-### Arguments
-- `parents::Array{Int64,3}`: an `T x N x (1 + N * B)` array of parent counts.
-- `convolved::Array{Float64,3}`: an `T x N x B` array of event counts convolved with basis functions.
-
-### Returns
-- `ll::Float64`: the log-likelihood of the parent event counts.
-"""
 function augmented_loglikelihood(process::DiscreteMultivariateHawkesProcess, parents, convolved)
+    """
+        augmented_loglikelihood(process::DiscreteMultivariateHawkesProcess, parents, convolved)
+    
+    Calculate the log-likelihood of the data given latent parent counts `parents`. The `parents` array contains all information required because summing across the last dimension gives the event count array.
+    
+    ### Arguments
+    - `parents::Array{Int64,3}`: an `T x N x (1 + N * B)` array of parent counts.
+    - `convolved::Array{Float64,3}`: an `T x N x B` array of event counts convolved with basis functions.
+    
+    ### Returns
+    - `ll::Float64`: the log-likelihood of the parent event counts.
+    """
+
     T, N, B = size(convolved)
     λ0 = intensity(process.baseline, 1:T)
     ll = 0.0
