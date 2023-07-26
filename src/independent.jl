@@ -1,6 +1,3 @@
-
-
-# const UnivariateHawkesProcess = Union{ContinuousHawkesProcess,DiscreteUnivariateHawkesProcess}
 const Components = Union{ContinuousHawkesProcess,DiscreteHawkesProcess}
 
 """
@@ -11,19 +8,19 @@ A container type for an collection of independent, discrete-time Hawkes processe
 ### Details
 This type is provided for convenience to fit a multivariate Hawkes processes with no interactions between nodes (a useful baseline for comparison): it is equivalent to fitting `K` univariate processes (with identical component types) independently. However, methods for independent processes *do not*, in general, assume uniformity of the constituent univariate processes. For example, the default constructor allows for a list of processes with different `impulse_response` types or having the same type with different fields (e.g., `Δtmax`). 
 
-### Example
-ndims = 2
-nbasis = 3
-nlags = 4
-dt = 2.0
-list = [
+### Examples
+```jldoctest; output = false
+process = IndependentHawkesProcess([
     DiscreteUnivariateHawkesProcess(
-        DiscreteUnivariateHomogeneousProcess(rand(), dt),
-        UnivariateGaussianImpulseResponse(rand(nbasis), nlags, dt),
-        UnivariateWeightModel(rand())
-    ) for _ in 1:ndims
-];
-process = IndependentHawkesProcess(list);
+        DiscreteUnivariateHomogeneousProcess(0.1, 2.0),
+        UnivariateGaussianImpulseResponse(ones(3) ./ 3, 4, 2.0),
+        UnivariateWeightModel(.25)
+    ) for _ in 1:2
+])
+
+# output
+Independent{DiscreteUnivariateHawkesProcess}(DiscreteUnivariateHawkesProcess[DiscreteUnivariateHawkesProcess(DiscreteUnivariateHomogeneousProcess{Float64}(0.1, 1.0, 1.0, 1.0, 1.0, 2.0), UnivariateGaussianImpulseResponse{Float64}([0.3333333333333333, 0.3333333333333333, 0.3333333333333333], 1.0, [1.0, 1.0, 1.0], 4, 2.0, [0.11088030729009202, 0.13911969270990795, 0.13911969270990795, 0.11088030729009202]), UnivariateWeightModel{Float64}(0.25, 1.0, 1.0, 1.0, 1.0)), DiscreteUnivariateHawkesProcess(DiscreteUnivariateHomogeneousProcess{Float64}(0.1, 1.0, 1.0, 1.0, 1.0, 2.0), UnivariateGaussianImpulseResponse{Float64}([0.3333333333333333, 0.3333333333333333, 0.3333333333333333], 1.0, [1.0, 1.0, 1.0], 4, 2.0, [0.11088030729009202, 0.13911969270990795, 0.13911969270990795, 0.11088030729009202]), UnivariateWeightModel{Float64}(0.25, 1.0, 1.0, 1.0, 1.0))])
+```
 """
 struct IndependentHawkesProcess{T<:Components} <: HawkesProcess
     list::Vector{T}
@@ -256,16 +253,20 @@ function split(data, process::Independent{ContinuousHawkesProcess})
     return [(events[nodes.==i], duration) for i = 1:ndims(process)]
 end
 
-"""
-    split(data, process::Independent{DiscreteHawkesProcess})
+function split(data, process::Independent{DiscreteHawkesProcess}) 
+    """
+        split(data, process::Independent{DiscreteHawkesProcess})
+    
+    Split combined data into univariate samples."""
 
-Split combined data into univariate samples."""
-split(data, process::Independent{DiscreteHawkesProcess}) = collect(eachrow(data))
+    return collect(eachrow(data))
+end
 
-"""
-    split_convolve(data, process::Independent{DiscreteHawkesProcess})
-
-Split combined data into univariate samples and convolve each sample with its corresponding process."""
 function split_convolve(data, process::Independent{DiscreteHawkesProcess})
+    """
+        split_convolve(data, process::Independent{DiscreteHawkesProcess})
+    
+    Split combined data into univariate samples and convolve each sample with its corresponding process."""
+
     return [(d, convolve(process.list[i], d)) for (i, d) in enumerate(eachrow(data))]
 end

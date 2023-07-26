@@ -1,8 +1,8 @@
-"""
-A Julia package for simulation and estimation of network Hawkes processes.
+# """
+# A Julia package for simulation and estimation of network Hawkes processes.
 
-More information at https://github.com/NetworkHawkesProcesses
-"""
+# More information at https://github.com/NetworkHawkesProcesses
+# """
 module NetworkHawkesProcesses
 
 import Base.ndims
@@ -23,7 +23,7 @@ abstract type HawkesProcess end
 """
     ndims(process::HawkesProcess)
 
-Return the number of dimensions of `process`.
+Return the number of dimensions (nodes) of `process`.
 """
 function ndims(process::HawkesProcess) end
 
@@ -54,6 +54,27 @@ function params(process::HawkesProcess) end
 Set the trainable parameters of a process to `x`, where `x` is assumed to follow the same order as `params(process)`.
 """
 function params!(process::HawkesProcess, x) end
+
+"""
+    loglikelihood(process::HawkesProcess, data)
+
+Calculate the log likelihood of `data` given the trainable parameters of a process.
+
+### Arguments
+- `data`: sample data in the format returned by `rand(process, duration)`, e.g., `(events, nodes, duration)` for a continuous-time, multivariate process.
+- `recursive::Bool`: use a recursive formulation, if possible. (Calculating log likelihood via the recursive formulation is the only practical option for processes with an exponential impulse response).  
+
+### Returns
+- `ll::Float64`: the log likelihood of the data.
+"""
+function loglikelihood(process::HawkesProcess, data) end
+
+"""
+    logprior(process::HawkesProcess)
+
+Calculate the log prior probability of the trainable process parameters.
+"""
+function logprior(process::HawkesProcess) end
 
 
 include("utils/helpers.jl")
@@ -125,6 +146,9 @@ export HawkesProcess,
        intensity,
        loglikelihood,
        logprior,
+       MaximumLikelihood,
+       MarkovChainMonteCarlo,
+       VariationalInference,
        mle!,
        mcmc!,
        vb!

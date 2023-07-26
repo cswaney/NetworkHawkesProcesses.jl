@@ -38,8 +38,9 @@ function multivariate(f::DiscreteUnivariateImpulseResponse, params) end
 
 
 """
-    UnivariateGaussianImpulseResponse(θ, γ, γv, nlags, dt, λ)
-    UnivariateGaussianImpulseResponse(θ, nlags, [dt])
+    UnivariateGaussianImpulseResponse{T<:AbstractFloat} <: ContinuousUnivariateImpulseResponse
+
+
 
 ### Arguments
 - `θ::Vector{AbstractFloat}`: basis weight parameters
@@ -85,7 +86,7 @@ function multivariate(process::UnivariateGaussianImpulseResponse, params)
         θ[i, i, :] .= params[i]
     end
 
-    return DiscreteGaussianImpulseResponse(θ, process.nlags, process.dt)
+    return GaussianImpulseResponse(θ, process.nlags, process.dt)
 end
 
 nbasis(impulse::UnivariateGaussianImpulseResponse) = length(impulse.θ)
@@ -520,7 +521,7 @@ end
 
 
 """
-LogitNormalImpulseResponse
+    LogitNormalImpulseResponse
 
 A logit-normal impulse response function.
 
@@ -667,11 +668,44 @@ end
 
 
 """
-    DiscreteGaussianImpulseResponse
+    GaussianImpulseResponse{T<:AbstractFloat} <: DiscreteMultivariateImpulseResponse
 
-If there are fewer basis functions than lags, then the means are evenly spaced between the endpoints of `[1, L]` such that the distance to the nearest mean or endpoint is the same everywhere. As a result, you can only have a means located at the endpoints if the number of basis functions is at least as great as the number of lags.
+An ``N``-dimensional discrete-time impulse response based on convex combinations of Gaussian bump basis functions.
+
+### Details
+For each edge of the network, ``n \\rightarrow m``, the impulse response is given by
+
+```math
+\\hbar\\left[l, \\theta_{n,m} \\right] = \\sum_{b=1}^B \\theta_{n,m}^{(b)} \\cdot \\phi_b\\left[l \\right],
+```
+
+where
+
+```math
+\\sum_{b=1}^B \\theta_{n,m}^{(b)} = 1,
+```
+
+and
+
+```math
+\\tilde{\\phi}_b [l] = \\frac{1}{\\Delta t \\cdot Z} \\exp \\biggl \\{ - \\frac{1}{2 \\sigma^2} (l - \\mu_b)^2 \\biggr \\}
+```
+
+where ``Z`` is a normalization constant such that each discrete basis function (scaled by the process step size, ``\\Delta t``) sums to one over ``l = 1, \\dots, L``. These conditions imply that each impulse response is a valid probability distribution.
+
+If there are fewer basis functions than lags (i.e., ``B < L``), then the means are evenly spaced between the endpoints of ``[1, L]`` such that the distance to the nearest mean or endpoint is the same everywhere. Thus, the means are located at the endpoints if and only if the number of basis functions is at least as great as the number of lags.
+
+We assume a shared ``\\text{Dir}(\\gamma)`` prior distribution over ``\\theta`` and use a ``\\text{Dir}(\\gamma_{n,m}^v)`` variational distribution for each basis vector ``\\theta_{n,m}``.
+
+### Arguments
+- `θ::Array{<:AbstractFloat,3}`: `ndims x ndims x nbasis` basis weight parameters. Each slice `θ[n, m, :]` should sum to `1.0` (or `0.0` if node `n` does not influence node `m`).
+- `γ::Vector{<:AbstractFloat}`: positive concentration hyperparameter (default: `ones(nbasis(size(θ, 3)))`).
+- `γv::Array{<:AbstractFloat}`: positive concentration variational parameters (default: `ones(size(θ)`).
+- `nlags::Integer`: positive number of lags.
+- `dt::AbstractFloat`: the length of each time step (default: `1.0`).
+- `ϕ::Union{Array{<:AbstractFloat,3},Nothing}`: a pre-computed `ndims x ndims x nlags` intensity matrix.
 """
-mutable struct DiscreteGaussianImpulseResponse <: DiscreteMultivariateImpulseResponse
+mutable struct GaussianImpulseResponse <: DiscreteMultivariateImpulseResponse
     θ
     γ
     γv
@@ -680,7 +714,7 @@ mutable struct DiscreteGaussianImpulseResponse <: DiscreteMultivariateImpulseRes
     ϕ
 end
 
-function DiscreteGaussianImpulseResponse(θ, nlags, dt=1.0)
+function GaussianImpulseResponse(θ, nlags, dt=1.0)
     # all(sum(θ, dims=3) .== 1.0) || error("Invalid discrete basis parameter.")
     # all(in.(sum(θ, dims=3), Ref([0.0, 1.0]))) || throw(ArgumentError("Basis parameters should sum to 0.0 or 1.0 ($(sum(θ, dims=3)))."))
     sums = sum(θ; dims=3)
@@ -688,19 +722,19 @@ function DiscreteGaussianImpulseResponse(θ, nlags, dt=1.0)
     
     γ = 1.0
     γv = ones(size(θ))
-    impulse = DiscreteGaussianImpulseResponse(θ, γ, γv, nlags, dt, nothing)
+    impulse = GaussianImpulseResponse(θ, γ, γv, nlags, dt, nothing)
     impulse.ϕ = intensity(impulse)
     return impulse
 end
 
-ndims(impulse::DiscreteGaussianImpulseResponse) = size(impulse.θ, 1)
-nbasis(impulse::DiscreteGaussianImpulseResponse) = size(impulse.θ, 3)
-nlags(impulse::DiscreteGaussianImpulseResponse) = impulse.nlags
-nparams(impulse::DiscreteGaussianImpulseResponse) = prod(size(impulse.θ))
+ndims(impulse::GaussianImpulseResponse) = size(impulse.θ, 1)
+nbasis(impulse::GaussianImpulseResponse) = size(impulse.θ, 3)
+nlags(impulse::GaussianImpulseResponse) = impulse.nlags
+nparams(impulse::GaussianImpulseResponse) = prod(size(impulse.θ))
 
-params(impulse::DiscreteGaussianImpulseResponse) = copy(vec(impulse.θ))
+params(impulse::GaussianImpulseResponse) = copy(vec(impulse.θ))
 
-function params!(impulse::DiscreteGaussianImpulseResponse, x)
+function params!(impulse::GaussianImpulseResponse, x)
     if length(x) != length(impulse.θ)
         error("Parameter vector length does not match model parameter length.")
     elseif !all(isapprox.(sum(x, dims=3), 1.0))
@@ -711,9 +745,9 @@ function params!(impulse::DiscreteGaussianImpulseResponse, x)
     return nothing
 end
 
-variational_params(impulse::DiscreteGaussianImpulseResponse) = copy(vec(impulse.γv))
+variational_params(impulse::GaussianImpulseResponse) = copy(vec(impulse.γv))
 
-function intensity(impulse::DiscreteGaussianImpulseResponse)
+function intensity(impulse::GaussianImpulseResponse)
     """Calculate the `N x N x L` impulse-response of `p` for all parent-child-basis combinations."""
     nnodes = ndims(impulse)
     ϕ = hcat(basis(impulse)...)
@@ -724,7 +758,7 @@ function intensity(impulse::DiscreteGaussianImpulseResponse)
     return IR  # (N x N x B) x (B x L) = N x N x L
 end
 
-function basis(impulse::DiscreteGaussianImpulseResponse)
+function basis(impulse::GaussianImpulseResponse)
     """Construct basis functions with means evenly spaced on `[1, L]`. Returns a vector of `nbasis` length-`nlags` basis vectors.
     """
     L = nlags(impulse)
@@ -740,7 +774,7 @@ function basis(impulse::DiscreteGaussianImpulseResponse)
     return [ϕ[:, b] ./ (sum(ϕ[:, b]) .* impulse.dt) for b = 1:B]
 end
 
-function resample!(impulse::DiscreteGaussianImpulseResponse, parents)
+function resample!(impulse::GaussianImpulseResponse, parents)
     N = ndims(impulse)
     B = nbasis(impulse)
     γ = Array{Array{Int64,1},2}(undef, N, N)
@@ -759,7 +793,7 @@ function resample!(impulse::DiscreteGaussianImpulseResponse, parents)
     return params(impulse)
 end
 
-function update!(impulse::DiscreteGaussianImpulseResponse, data, parents)
+function update!(impulse::GaussianImpulseResponse, data, parents)
     """Perform a variational inference update. `parents` is the `T x N x (1 + NB)` variational parameter for the auxillary parent variables."""
     N, T = size(data)
     _, _, B = size(impulse.θ)
@@ -777,11 +811,11 @@ function update!(impulse::DiscreteGaussianImpulseResponse, data, parents)
     return copy(impulse.γv)
 end
 
-function variational_log_expectation(impulse::DiscreteGaussianImpulseResponse, pidx, cidx)
+function variational_log_expectation(impulse::GaussianImpulseResponse, pidx, cidx)
     return digamma.(impulse.γv[pidx, cidx, :]) .- digamma(sum(impulse.γv[pidx, cidx, :]))
 end
 
-function q(impulse::DiscreteGaussianImpulseResponse)
+function q(impulse::GaussianImpulseResponse)
     idx = CartesianIndices(impulse.γv[:, :, 1])
     return reshape([Dirichlet(impulse.γv[idx[i], :]) for i in eachindex(impulse.γv[:, :, 1])], size(impulse.θ)[1:2])
 end

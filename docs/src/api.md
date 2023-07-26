@@ -1,91 +1,64 @@
 ## Hawkes Processes
-
-### Continuous Processes
 ```@docs
+ContinuousUnivariateHawkesProcess
 ContinuousStandardHawkesProcess
-```
-
-```@docs
 ContinuousNetworkHawkesProcess
-```
-
-```@docs
-rand(process::ContinuousHawkesProcess, duration::Float64)
-```
-
-```@docs
-loglikelihood(process::ContinuousHawkesProcess, data)
-```
-
-```@docs
-intensity(process::ContinuousHawkesProcess, data, times::Vector{Float64})
-```
-
-### Discrete Processes
-```@docs
+DiscreteUnivariateHawkesProcess
 DiscreteStandardHawkesProcess
-```
-
-```@docs
 DiscreteNetworkHawkesProcess
+IndependentHawkesProcess
 ```
 
 ```@docs
-rand(process::DiscreteHawkesProcess, steps::Int64)
+ndims(process::HawkesProcess)
+isstable(process::HawkesProcess)
+nparams(process::HawkesProcess)
+params(process::HawkesProcess)
+params!(process::HawkesProcess, x)
+rand(process::ContinuousHawkesProcess, duration::AbstractFloat)
+rand(process::DiscreteHawkesProcess, duration::Integer)
+loglikelihood(process::HawkesProcess, data)
+logprior(process::HawkesProcess)
+intensity(process::ContinuousHawkesProcess, data, time::AbstractFloat)
+intensity(process::DiscreteHawkesProcess, data, time::Integer)
 ```
 
 ```@docs
-loglikelihood(process::DiscreteHawkesProcess, data)
-```
-
-```@docs
-intensity(process::DiscreteHawkesProcess, convolved)
+NetworkHawkesProcesses.convolve(process::DiscreteHawkesProcess, data)
 ```
 
 
 ## Baseline Processes
-
-### Continuous Processes
 ```@docs
+UnivariateHomogeneousProcess
 HomogeneousProcess
-```
-
-```@docs
+UnivariateLogGaussianCoxProcess
+UnivariateLogGaussianCoxProcess(gp::GaussianProcess, duration::AbstractFloat, nsteps::Integer, m::T=0.0) where {T<:AbstractFloat}
 LogGaussianCoxProcess
-```
-
-### Discrete Processes
-```@docs
+DiscreteUnivariateHomogeneousProcess
 DiscreteHomogeneousProcess
+DiscreteUnivariateLogGaussianCoxProcess
+DiscreteUnivariateLogGaussianCoxProcess(gp::GaussianProcess, duration, nsteps, m::T=0.0, dt::T=1.0) where {T<:AbstractFloat}
+DiscreteLogGaussianCoxProcess
+GaussianProcess
 ```
 
-```@docs
-DiscreteLogGaussianCoxProcess
-```
 
 ## Impulse Response Models
-
-### Continuous Models
 ```@docs
+UnivariateExponentialImpulseResponse
 ExponentialImpulseResponse
-```
-
-```@docs
+UnivariateLogitNormalImpulseResponse
 LogitNormalImpulseResponse
-```
-
-### Discrete Models
-```@docs
-DiscreteGaussianImpulseResponse
+UnivariateGaussianImpulseResponse
+GaussianImpulseResponse
 ```
 
 
 ## Weight Models
 ```@docs
+UnivariateWeightModel
 DenseWeightModel
-```
-
-```@docs
 SpikeAndSlabWeightModel
 ```
 
@@ -93,18 +66,20 @@ SpikeAndSlabWeightModel
 ## Network Models
 ```@docs
 DenseNetworkModel
+BernoulliNetworkModel
 ```
 
 ```@docs
-BernoulliNetworkModel
+
 ```
 
 
 ## Inference
 ```@docs
-mcmc!(process::HawkesProcess, data; nsteps=1000, verbose=false)
-```
-
-```@docs
-vb!(process::HawkesProcess, data; max_steps::Int64=1_000, Δx_thresh=1e-6, Δq_thresh=1e-2)
+mle!
+MaximumLikelihood
+mcmc!
+MarkovChainMonteCarlo
+vb!
+VariationalInference
 ```

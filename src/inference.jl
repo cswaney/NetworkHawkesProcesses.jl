@@ -2,6 +2,13 @@
     MaximumLikelihood
 
 A container to store the results of maximum likelihood estimation.
+
+### Arguments
+- `maximizer`: the likelihood-maximizing trainable parameters as returned by `params(process)`.
+- `maximimum`: the likelihood evaluated at `maximizer`.
+- `steps`: the number of steps taken to arrive at `maximizer`.
+- `elapsed`: the time (s) taken to arrive at `maximizer`.
+- `status`: an indication of the success or failure of the routine.
 """
 mutable struct MaximumLikelihood
     maximizer
@@ -14,6 +21,22 @@ end
 function Base.show(io::IO, res::MaximumLikelihood)
     print(io, "\n* Status: $(res.status)\n    steps: $(res.steps)\n    elapsed: $(res.elapsed)\n    loss: $(res.maximum)")
 end
+
+"""
+    mle!(process::HawkesProcess, data; <kwargs>)
+
+Perform maximum likelihood estimation on a process, updating trainable parameters in the process.
+
+### Details
+This estimation routine is only available for processes with dense network connections.
+
+### Arguments
+- `data`: data in the format returned by `rand(process, duration)`, e.g., `(events, nodes, duration)` for a continuous-time, multivariate process.
+
+### Returns
+- `res::MaximumLikelihood`
+"""
+function mle!(process::HawkesProcess, data) end
 
 
 """
@@ -40,7 +63,6 @@ function show(io::IO, res::MarkovChainMonteCarlo)
     print(io, "\n* Status: complete\n    steps: $(res.steps)\n    elapsed: $(res.elapsed)")
 end
 
-# TODO - initialize parameters (random or fitted)
 """
     mcmc!(process::HawkesProcess, data; kwargs...)
 
@@ -185,12 +207,3 @@ function vb!(process::DiscreteHawkesProcess, data::AbstractArray{<:Integer}; max
     println(" ** maximum steps reached **")
     return res
 end
-
-"""
-    svi!(process::DiscreteHawkesProcess, data; kwargs...)
-
-Perform stochastic mean-field variational inference.
-
-Explain how this differs from `vb!` here...
-"""
-function svi!(process::HawkesProcess, data) end
